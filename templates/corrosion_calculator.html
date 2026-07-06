@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrosion Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">Corrosion Rate App</div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/corrosion-calculator" class="active">Corrosion Calculator</a></li>
+                <li><a href="/fluid-sampling">Fluid Sampling</a></li>
+                <li><a href="/short-term">Short Term</a></li>
+                <li><a href="/long-term">Long Term</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <h2>Corrosion Rate Calculator</h2>
+        <p class="page-description">Hitung laju korosi dan proyeksi ketebalan equipment</p>
+        
+        <div class="header-inputs">
+            <div class="field-group">
+                <label>Equipment</label>
+                <select id="equipmentSelector">
+                    <option value="ST">Storage Tank</option>
+                    <option value="PV">Pressure Vessel</option>
+                    <option value="HEX">Heat Exchanger</option>
+                    <option value="FFC">Fin Fan Cooler</option>
+                    <option value="Stack">Stack</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Part</label>
+                <select id="partSelector" onchange="updateFormDisplay()">
+                    <option value="bottom">Bottom</option>
+                    <option value="shell">Shell</option>
+                    <option value="roof">Roof</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Inspection Year</label>
+                <input type="number" id="year" value="2024" step="1">
+            </div>
+            <div class="field-group">
+                <label>Actual Thickness (mm)</label>
+                <input type="number" id="act_thick" value="10.0" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Minimal Thickness (mm)</label>
+                <input type="number" id="min_thick" value="2.5" step="0.1">
+            </div>
+        </div>
+
+        <div id="section-bottom" class="form-section">
+            <h3>Bottom Parameters</h3>
+            <div class="field-group">
+                <label>SRB Count</label>
+                <input type="number" id="srb" value="1000">
+            </div>
+            <div class="field-group">
+                <label>Soil Resistivity (Ω-cm)</label>
+                <input type="number" id="soil_res" value="5000">
+            </div>
+            <div class="field-group">
+                <label>Kandungan Klorida (ppm)</label>
+                <input type="number" id="klorida" value="5000">
+            </div>
+        </div>
+
+        <div id="section-shell" class="form-section hidden">
+            <h3>Shell Parameters</h3>
+            <div class="field-group">
+                <label>pH</label>
+                <input type="number" id="pH" value="7" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Operating Temperature (°C)</label>
+                <input type="number" id="temp" value="40" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Water Content (%)</label>
+                <input type="number" id="water" value="0.5" step="0.1">
+            </div>
+        </div>
+
+        <div id="section-roof" class="form-section hidden">
+            <h3>Roof Parameters</h3>
+            <div class="field-group">
+                <label>H2S Concentration (ppm)</label>
+                <input type="number" id="h2s" value="10" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>CO2 Concentration (%)</label>
+                <input type="number" id="co2" value="10" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Humidity Level (%)</label>
+                <input type="number" id="humidity" value="80" step="1">
+            </div>
+        </div>
+
+        <button class="btn-predict" onclick="calculateCorrosion()">Calculate Corrosion Rate</button>
+
+        <div class="result-box" id="results">
+            <div class="result-item">
+                <span>Equipment</span>
+                <strong id="res-eq">Storage Tank</strong>
+            </div>
+            <div class="result-item">
+                <span>Part</span>
+                <strong id="res-part">Bottom</strong>
+            </div>
+            <div class="result-item">
+                <span>Corrosion Rate</span>
+                <strong id="res-cr">0.000</strong> mmpy
+            </div>
+            <div class="result-item">
+                <span>Remaining Life</span>
+                <strong id="res-rl">0.0</strong> years
+            </div>
+            <div class="result-item">
+                <span>Retirement Year</span>
+                <strong id="res-retire">2050</strong>
+            </div>
+        </div>
+
+        <canvas id="corrosionChart"></canvas>
+    </div>
+
+    <script>
+        function updateFormDisplay() {
+            const selected = document.getElementById('partSelector').value;
+            
+            document.getElementById('section-bottom').classList.add('hidden');
+            document.getElementById('section-shell').classList.add('hidden');
+            document.getElementById('section-roof').classList.add('hidden');
+
+            document.getElementById('section-' + selected).classList.remove('hidden');
+        }
+
+        let myChart;
+
+        async function calculateCorrosion() {
+            const eqSelect = document.getElementById('equipmentSelector');
+            const partSelect = document.getElementById('partSelector');
+
+            const equipmentText = eqSelect.options[eqSelect.selectedIndex].text;
+            const partText = partSelect.options[partSelect.selectedIndex].text;
+
+            const partValue = partSelect.value;
+            const startYear = parseInt(document.getElementById('year').value) || new Date().getFullYear();
+            const t_act = parseFloat(document.getElementById('act_thick').value);
+            const t_min = parseFloat(document.getElementById('min_thick').value);
+            
+            let requestData = {
+                part: partValue,
+                actual_thickness: t_act,
+                min_thickness: t_min,
+                year: startYear
+            };
+
+            if (partValue === 'bottom') {
+                requestData.soil_resistivity = parseFloat(document.getElementById('soil_res').value);
+                requestData.srb_count = parseFloat(document.getElementById('srb').value);
+            } else if (partValue === 'shell') {
+                requestData.temperature = parseFloat(document.getElementById('temp').value);
+                requestData.water_content = parseFloat(document.getElementById('water').value);
+            } else if (partValue === 'roof') {
+                requestData.h2s = parseFloat(document.getElementById('h2s').value);
+                requestData.humidity = parseFloat(document.getElementById('humidity').value);
+            }
+
+            try {
+                const response = await fetch('/api/calculate-corrosion', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('res-eq').innerText = equipmentText;
+                    document.getElementById('res-part').innerText = partText;
+                    document.getElementById('res-cr').innerText = result.corrosion_rate;
+                    document.getElementById('res-rl').innerText = result.remaining_life;
+                    document.getElementById('res-retire').innerText = result.retirement_year;
+
+                    generateChart(startYear, t_act, t_min, result.corrosion_rate);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error calculating corrosion: ' + error.message);
+            }
+        }
+
+        function generateChart(startYear, t_act, t_min, cr) {
+            const ctx = document.getElementById('corrosionChart').getContext('2d');
+            const yearsRange = Array.from({length: 25}, (_, i) => i);
+            const labelsYear = yearsRange.map(y => startYear + y);
+            const dataThick = yearsRange.map(y => {
+                let val = t_act - (cr * y);
+                return val > 0 ? val.toFixed(2) : 0;
+            });
+
+            if (myChart) myChart.destroy();
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labelsYear,
+                    datasets: [{
+                        label: 'Thickness Projection (mm)',
+                        data: dataThick,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }, {
+                        label: 'Minimal Thickness',
+                        data: yearsRange.map(() => t_min),
+                        borderColor: '#e74c3c',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Year' } },
+                        y: { title: { display: true, text: 'Thickness (mm)' }, beginAtZero: true, suggestedMax: t_act + 2 }
+                    }
+                }
+            });
+        }
+
+        window.onload = () => {
+            updateFormDisplay();
+            calculateCorrosion();
+        };
+    </script>
+</body>
+</html>

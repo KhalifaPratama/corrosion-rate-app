@@ -1,0 +1,132 @@
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   Git Setup untuk Windows Team                           ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+
+⚠️ WARNING YANG ANDA LIHAT (NORMAL):
+═══════════════════════════════════════════════════════════
+
+warning: in the working copy of 'file.ipynb', 
+LF will be replaced by CRLF the next time Git touches it
+
+Ini NORMAL dan AMAN! Git otomatis menghandle line endings.
+
+
+📋 PENJELASAN:
+═══════════════════════════════════════════════════════════
+
+Windows menggunakan:   CRLF (\r\n)
+Linux/Mac menggunakan: LF (\n)
+
+Git akan:
+✅ Convert ke LF saat commit (di repository)
+✅ Convert ke CRLF saat checkout (di Windows)
+
+Ini memastikan kompatibilitas cross-platform!
+
+
+🔧 SETUP GIT UNTUK WINDOWS (One-time):
+═══════════════════════════════════════════════════════════
+
+Jalankan command ini sekali saja:
+
+git config --global core.autocrlf true
+
+Ini memberitahu Git untuk:
+- Convert CRLF → LF saat commit
+- Convert LF → CRLF saat checkout
+
+
+📝 UNTUK TEAM ANDA:
+═══════════════════════════════════════════════════════════
+
+Semua anggota team (jika Windows) jalankan:
+
+git config --global core.autocrlf true
+
+Jika ada yang pakai Linux/Mac, mereka jalankan:
+
+git config --global core.autocrlf input
+
+
+✅ FILE .gitattributes SUDAH DIBUAT!
+═══════════════════════════════════════════════════════════
+
+Repository ini sudah include .gitattributes yang:
+- Auto handle line endings
+- Force LF untuk Python, Markdown, JSON
+- Force CRLF untuk .bat files
+- Binary files tetap binary
+
+Jadi warning tersebut bisa diabaikan!
+
+
+🚀 LANJUTKAN GIT WORKFLOW:
+═══════════════════════════════════════════════════════════
+
+Warning bisa diabaikan. Lanjutkan:
+
+1. git add .
+   (Warning muncul tapi OK)
+
+2. git commit -m "Initial commit: Corrosion Rate App v2.0.1"
+
+3. git remote add origin URL
+
+4. git push -u origin main
+
+DONE! ✅
+
+
+📚 TENTANG LINE ENDINGS:
+═══════════════════════════════════════════════════════════
+
+CRLF = Carriage Return + Line Feed
+- Used by: Windows
+- Characters: \r\n
+
+LF = Line Feed only
+- Used by: Linux, Mac
+- Characters: \n
+
+Git repository: Always use LF (standard)
+Your working directory (Windows): CRLF
+
+Git auto-converts! No action needed from you.
+
+
+❓ FAQ:
+═══════════════════════════════════════════════════════════
+
+Q: Apakah warning ini berbahaya?
+A: Tidak! Ini informasi saja.
+
+Q: Apakah saya perlu fix sesuatu?
+A: Tidak, Git sudah handle otomatis.
+
+Q: File akan rusak?
+A: Tidak, Git hanya convert line endings.
+
+Q: Harus jalankan command git config?
+A: Optional, tapi recommended untuk suppress warning.
+
+Q: Team pakai Linux, apa issue?
+A: Tidak ada issue! .gitattributes handle semua.
+
+
+✅ KESIMPULAN:
+═══════════════════════════════════════════════════════════
+
+Warning tersebut AMAN dan bisa diabaikan.
+
+Repository sudah configured dengan .gitattributes.
+
+Semua notebook files (.ipynb) akan di-commit.
+
+Cross-platform compatibility dijamin!
+
+Lanjutkan dengan git commit! 🚀
+
+
+═══════════════════════════════════════════════════════════

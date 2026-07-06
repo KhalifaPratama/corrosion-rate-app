@@ -1,0 +1,86 @@
+═══════════════════════════════════════════════════════════════
+          QUICK FIX - Python 3.13 Compatibility Issue
+═══════════════════════════════════════════════════════════════
+
+MASALAH: Anda pakai Python 3.13 (terlalu baru)
+         numpy 1.24.3 tidak support Python 3.13
+
+SOLUSI TERCEPAT:
+═══════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────┐
+│  OPSI 1: INSTALLER KHUSUS PYTHON 3.13 (RECOMMENDED)        │
+│                                                             │
+│  Double-click file ini:                                    │
+│  ► install-py313.bat                                       │
+│                                                             │
+│  Installer ini akan install versi package yang kompatibel │
+│  dengan Python 3.13.                                       │
+│                                                             │
+│  ✅ Solusi lengkap untuk semua 4 menu                      │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  OPSI 2: INSTALASI MINIMAL (PALING CEPAT!)                 │
+│                                                             │
+│  Double-click file ini:                                    │
+│  ► install-minimal.bat                                     │
+│                                                             │
+│  Install hanya Flask + numpy (cepat!)                      │
+│                                                             │
+│  Yang berfungsi:                                           │
+│  ✅ Corrosion Calculator (100%)                            │
+│  ✅ Fluid Sampling (100%)                                  │
+│  ⚠️ Short Term (perlu ML model)                            │
+│  ⚠️ Long Term (perlu ML model)                             │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  OPSI 3: MANUAL VIA COMMAND PROMPT                         │
+│                                                             │
+│  1. Buka Command Prompt                                    │
+│  2. Ketik:                                                 │
+│                                                             │
+│     cd d:\Documents\Alif\magangG8\nano\kalkulator-CR       │
+│     python -m pip install --upgrade pip setuptools wheel   │
+│     python -m pip install Flask numpy pandas scikit-learn  │
+│                                                             │
+│  3. Run app:                                               │
+│     python app.py                                          │
+│                                                             │
+│  4. Buka browser: http://localhost:5000                    │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+                    REKOMENDASI SAYA
+═══════════════════════════════════════════════════════════════
+
+Untuk Anda: GUNAKAN OPSI 2 (install-minimal.bat)
+
+Kenapa?
+→ Paling cepat (hanya 2 package)
+→ 2 menu utama sudah bisa dipakai
+→ Cukup untuk demo dan testing
+→ Bisa upgrade nanti kalau perlu
+
+═══════════════════════════════════════════════════════════════
+                    SETELAH INSTALASI
+═══════════════════════════════════════════════════════════════
+
+1. Double-click: run.bat
+   ATAU ketik: python app.py
+
+2. Buka browser: http://localhost:5000
+
+3. Coba menu:
+   - Corrosion Calculator ✅
+   - Fluid Sampling ✅
+
+═══════════════════════════════════════════════════════════════
+                  NEED MORE DETAILS?
+═══════════════════════════════════════════════════════════════
+
+Baca file: PYTHON313_FIX.md
+Untuk troubleshooting: TROUBLESHOOTING.md
+
+═══════════════════════════════════════════════════════════════

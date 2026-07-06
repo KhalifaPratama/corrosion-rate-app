@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist-pyinstaller/
+build-pyinstaller/
+*.egg
+
+# Virtual Environment
+test_env/
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment Variables
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter Notebook
+.ipynb_checkpoints
+model - long-term copy.ipynb
+model - short-term copy.ipynb
+testing.ipynb
+
+# PyInstaller
+*.spec
+build/
+dist/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.swp
+
+# Documentation (dev only, remove for Git)
+BUILD_OPTIONS.md
+BUILD_QUICK.txt
+BUILD_GUIDE.md
+CARA_BUILD.txt
+FIX_SHORTTERM.md
+MODEL_FIXED.md
+QUICK_FIX_SHORTTERM.txt
+TROUBLESHOOTING.md
+MULAI_DISINI.txt
+QUICK_START.txt
+SIAP_DEPLOY.txt
+STATUS.md
+DEPLOYMENT_GUIDE.md
+GIT_COMMIT_READY.txt
+GIT_SETUP.md
+
+# Local batch files
+install-*.bat
+run.bat
+library.txt
+index_revisi.html
+
+# Keep only essential documentation for Git
+# Keep: README.md, DEPLOYMENT_GUIDE.md, PRODUCTION_READY.md, UPDATE_NOTES.md, CHANGELOG.md

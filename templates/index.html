@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrosion Rate Application</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">Corrosion Rate App</div>
+            <ul class="nav-menu">
+                <li><a href="/" class="active">Home</a></li>
+                <li><a href="/corrosion-calculator">Corrosion Calculator</a></li>
+                <li><a href="/fluid-sampling">Fluid Sampling</a></li>
+                <li><a href="/short-term">Short Term</a></li>
+                <li><a href="/long-term">Long Term</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="hero-section">
+            <h1>Selamat Datang di Aplikasi Corrosion Rate</h1>
+            <p class="subtitle">Platform komprehensif untuk analisis dan prediksi laju korosi</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🧮</div>
+                <h3>Corrosion Calculator</h3>
+                <p>Hitung laju korosi berdasarkan parameter equipment seperti storage tank, pressure vessel, dan heat exchanger.</p>
+                <a href="/corrosion-calculator" class="btn-feature">Mulai Hitung</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">🔬</div>
+                <h3>Fluid Sampling</h3>
+                <p>Kelola dan dokumentasi data sampling fluida untuk analisis karakteristik korosi.</p>
+                <a href="/fluid-sampling" class="btn-feature">Input Data</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⏱️</div>
+                <h3>Short Term Prediction</h3>
+                <p>Prediksi laju korosi jangka pendek menggunakan machine learning model.</p>
+                <a href="/short-term" class="btn-feature">Prediksi</a>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h3>Long Term Prediction</h3>
+                <p>Prediksi laju korosi jangka panjang untuk perencanaan maintenance equipment.</p>
+                <a href="/long-term" class="btn-feature">Prediksi</a>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h2>Tentang Aplikasi</h2>
+            <p>Aplikasi ini dirancang untuk membantu engineer dalam melakukan analisis laju korosi pada equipment industri. 
+            Dengan menggunakan kombinasi perhitungan empiris dan machine learning, aplikasi ini dapat memberikan prediksi 
+            yang akurat untuk perencanaan maintenance dan estimasi umur equipment.</p>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 Corrosion Rate Application. All rights reserved.</p>
+    </footer>
+</body>
+</html>
