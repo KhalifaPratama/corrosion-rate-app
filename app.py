@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 import numpy as np
+import pandas as pd  # Import at module level for better performance
 import os
 import sys
 
@@ -34,6 +35,15 @@ app = Flask(__name__,
 # Configuration
 app.config['JSON_SORT_KEYS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request size
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # Cache static files for 1 year
+
+# Enable response compression if available
+try:
+    from flask_compress import Compress
+    Compress(app)
+    print("✅ Response compression enabled (gzip)")
+except ImportError:
+    print("ℹ️ flask-compress not installed. Install with: pip install flask-compress")
 
 # Load models (only if joblib is available)
 MODEL_STR = os.path.join(base_path, 'model_str.joblib')
@@ -182,7 +192,6 @@ def predict_short_term():
         ou = data.get('ou', 'HO')  # Operating Unit
         
         # Create DataFrame with exact column names as in training
-        import pandas as pd
         input_data = pd.DataFrame({
             'equipment': [equipment],
             'part': [part],
@@ -223,7 +232,6 @@ def predict_long_term():
         ou = data.get('ou', 'HO')  # Operating Unit
         
         # Create DataFrame with exact column names as in training
-        import pandas as pd
         input_data = pd.DataFrame({
             'equipment': [equipment],
             'part': [part],
