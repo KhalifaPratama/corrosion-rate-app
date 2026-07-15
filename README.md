@@ -2,7 +2,7 @@
 
 Web application untuk prediksi dan kalkulasi laju korosi menggunakan Machine Learning. Aplikasi ini mendukung 4 metode prediksi berbeda untuk analisis korosi pada peralatan industri.
 
-![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![Flask](https://img.shields.io/badge/flask-3.1.0-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
