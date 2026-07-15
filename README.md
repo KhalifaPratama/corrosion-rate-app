@@ -1,6 +1,6 @@
 # 🔧 Corrosion Rate Prediction Application
 
-Web application untuk prediksi dan kalkulasi laju korosi menggunakan Machine Learning. Aplikasi ini mendukung 4 metode prediksi berbeda untuk analisis korosi pada peralatan industri.
+Web application untuk prediksi dan kalkulasi laju korosi menggunakan Machine Learning. Aplikasi ini mendukung 4 metode prediksi berbeda untuk analisis korosi pada equipment.
 
 ![Version](https://img.shields.io/badge/version-2.0.3-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
@@ -370,7 +370,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Your Name** - *Initial work*
+- **KhalifaPratama** - *Initial work*
 
 ---
 
