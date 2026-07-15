@@ -42,6 +42,8 @@ desktop.ini
 .ipynb_checkpoints
 model - long-term copy.ipynb
 model - short-term copy.ipynb
+model - long-term.ipynb
+model - short-term.ipynb
 testing.ipynb
 
 # PyInstaller
@@ -76,6 +78,8 @@ STATUS.md
 DEPLOYMENT_GUIDE.md
 GIT_COMMIT_READY.txt
 GIT_SETUP.md
+
+CHANGELOG.md
 
 # Local batch files
 install-*.bat
