@@ -201,6 +201,24 @@
             'M-Alkalinity': 400, 'Sum of Cation': 250, 'SRB': 10
         };
 
+        // Satuan tiap parameter, ditampilkan di sebelah nama field.
+        const SATUAN = {
+            'HCO3': 'ppm', 'Density': 'g/cm³', 'Resistivity': 'Ω·m',
+            'Salinity': 'ppm', 'SO4': 'ppm', 'Ca': 'ppm', 'Mg': 'ppm',
+            'Acetic Acid': 'ppm', 'Sr': 'ppm', 'Na': 'ppm', 'Cl': 'ppm',
+            'CaCO3': 'ppm', 'Temperature': '°C', 'Conductivity': 'µS/cm',
+            'M-Alkalinity': 'ppm', 'Sum of Cation': 'meq/L', 'SRB': 'sel/mL',
+            'Cation Anion Balance': '%', 'pH': ''
+        };
+
+        // Nama lengkap untuk parameter yang ditulis singkat.
+        const NAMA_PANJANG = {
+            'HCO3': 'Bikarbonat', 'SO4': 'Sulfat', 'Ca': 'Kalsium',
+            'Mg': 'Magnesium', 'Sr': 'Stronsium', 'Na': 'Natrium',
+            'Cl': 'Klorida', 'CaCO3': 'Kalsium Karbonat',
+            'M-Alkalinity': 'Alkalinitas-M', 'SRB': 'Sulfate Reducing Bacteria'
+        };
+
         function idUntukFitur(nama) {
             return 'p_' + nama.replace(/[^A-Za-z0-9]/g, '_');
         }
@@ -269,20 +287,36 @@
                 wrap.className = 'field-group';
 
                 const label = document.createElement('label');
-                label.textContent = nama;
                 label.setAttribute('for', idUntukFitur(nama));
+                label.textContent = nama;
+                const satuan = SATUAN[nama];
+                if (satuan) {
+                    const s = document.createElement('span');
+                    s.className = 'unit';
+                    s.textContent = ' (' + satuan + ')';
+                    label.appendChild(s);
+                }
 
                 const input = document.createElement('input');
                 input.type = 'number';
                 input.id = idUntukFitur(nama);
                 input.dataset.feature = nama;
                 input.step = 'any';
+                const contoh = CONTOH_NILAI[nama];
+                if (contoh !== undefined) input.placeholder = 'mis. ' + contoh;
                 input.value = lama[nama] !== undefined
                     ? lama[nama]
-                    : (CONTOH_NILAI[nama] !== undefined ? CONTOH_NILAI[nama] : '');
+                    : (contoh !== undefined ? contoh : '');
 
                 wrap.appendChild(label);
                 wrap.appendChild(input);
+
+                if (NAMA_PANJANG[nama]) {
+                    const ket = document.createElement('small');
+                    ket.textContent = NAMA_PANJANG[nama];
+                    wrap.appendChild(ket);
+                }
+
                 container.appendChild(wrap);
             });
         }

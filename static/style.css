@@ -257,9 +257,34 @@ h2 {
     padding-left: 12px;
 }
 
+/* Field parameter fluid sampling dibuat dinamis oleh JS. Wadahnya perlu
+   membentang penuh dan menjadi grid sendiri, kalau tidak seluruh field
+   menumpuk vertikal dalam satu sel grid .form-section. */
+#fluid-params {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+/* Keterangan model membentang penuh di atas deretan field */
+#model-info-banner,
+#cr-master-info {
+    grid-column: 1 / -1;
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+    color: #5a6c7d;
+}
+
 .field-group {
     display: flex;
     flex-direction: column;
+}
+
+/* Satuan parameter, ditampilkan lebih redup di samping nama */
+.field-group label .unit {
+    font-weight: 500;
+    color: #95a5a6;
 }
 
 .field-group label {

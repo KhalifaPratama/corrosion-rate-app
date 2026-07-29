@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import numpy as np
 import pandas as pd  # Import at module level for better performance
+import json
 import os
 import sys
 
@@ -123,6 +124,81 @@ MODEL_OPTIONS = {
     for feature in MODEL_FEATURES
 }
 
+# --- Data master peralatan ---------------------------------------------------
+# 'equipment_master.json' berisi kombinasi peralatan yang benar-benar ada di
+# lapangan, dipakai agar dropdown saling menyaring: memilih OU menyisakan
+# facility milik OU itu saja, bukan seluruh 186 facility tanpa konteks.
+#
+# File ini hasil turunan dari data master peralatan, sudah disaring saat dibuat:
+#   - hanya 4 jenis peralatan yang relevan (Pressure Vessel, Storage Tank,
+#     FFC, HEX);
+#   - hanya kombinasi yang seluruh nilainya dikenal model, sehingga dropdown
+#     tidak pernah menawarkan pilihan yang membuat prediksi meleset diam-diam.
+#
+# Formatnya terindeks (daftar nilai + baris berisi indeks) supaya payload ke
+# browser kecil. Dibaca dengan modul json bawaan — tidak ada dependensi Excel.
+MASTER_PATH = os.path.join(base_path, 'equipment_master.json')
+
+MASTER_FIELDS = ['equipment_type', 'category', 'facility', 'asset_owner', 'ou']
+
+
+def load_equipment_master(path):
+    """
+    Muat tabel kombinasi peralatan.
+
+    Mengembalikan None bila file tidak ada atau rusak, sehingga aplikasi tetap
+    jalan dengan dropdown dari vocabulary model (tanpa penyaringan bertingkat).
+    """
+    if not os.path.exists(path):
+        print(f"ℹ️ Info: '{os.path.basename(path)}' tidak ditemukan; "
+              f"dropdown memakai vocabulary model tanpa penyaringan.")
+        return None
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+
+        if data.get('fields') != MASTER_FIELDS or not data.get('rows'):
+            print("⚠️ Info: struktur data master tidak sesuai; diabaikan.")
+            return None
+
+        print(f"✅ Data master '{os.path.basename(path)}' dimuat: "
+              f"{len(data['rows'])} kombinasi peralatan.")
+        return data
+    except Exception as e:
+        print(f"⚠️ Info: gagal membaca data master: {type(e).__name__} - {e}")
+        return None
+
+
+EQUIPMENT_MASTER = load_equipment_master(MASTER_PATH)
+
+
+def master_values_unknown_per_model():
+    """
+    Nilai master yang tidak dikenal masing-masing model.
+
+    Cakupan training kedua model tidak sama — STCR jauh lebih sempit dan sama
+    sekali tidak mengenal jenis peralatan FFC. Nilai seperti itu tetap
+    ditawarkan (peralatannya memang ada di lapangan), tapi ditandai di dropdown
+    supaya pengguna tahu prediksi model tersebut akan kurang akurat sebelum
+    menekan Hitung, bukan baru diberi tahu setelah hasilnya keluar.
+    """
+    if not EQUIPMENT_MASTER:
+        return {}
+
+    hasil = {}
+    for label, katalog in (('short_term', STCR_CATEGORIES), ('long_term', LTCR_CATEGORIES)):
+        per_field = {}
+        for field in MASTER_FIELDS:
+            dikenal = set(katalog.get(field, []))
+            if not dikenal:
+                continue
+            asing = [v for v in EQUIPMENT_MASTER['values'][field] if v not in dikenal]
+            if asing:
+                per_field[field] = asing
+        if per_field:
+            hasil[label] = per_field
+    return hasil
+
 # Load Fluid Sampling model (pickle format)
 if PICKLE_AVAILABLE:
     try:
@@ -244,6 +320,10 @@ def model_options():
         'success': True,
         'features': MODEL_FEATURES,
         'options': MODEL_OPTIONS,
+        # Tabel kombinasi nyata; dipakai frontend untuk saling menyaring dropdown.
+        'master': EQUIPMENT_MASTER,
+        # Nilai yang di luar cakupan training tiap model, untuk ditandai di UI.
+        'master_unknown_per_model': master_values_unknown_per_model(),
         'models_loaded': {
             'short_term': model_stcr is not None,
             'long_term': model_ltcr is not None

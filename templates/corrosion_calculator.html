@@ -38,6 +38,7 @@
 
                 <div class="form-section">
                     <h3>Parameter Model (6 Input)</h3>
+                    <p class="page-description" id="cr-master-info"></p>
                     <div class="field-group">
                         <label>Jenis Peralatan (Equipment Type) *</label>
                         <select id="equipment_type" required></select>
@@ -80,7 +81,10 @@
                     </div>
                 </div>
 
-                <button class="btn-predict" onclick="hitungLajuKorosi()">Hitung Laju Korosi</button>
+                <div class="button-group">
+                    <button class="btn-predict" onclick="hitungLajuKorosi()">Hitung Laju Korosi</button>
+                    <button class="btn-secondary" onclick="resetPilihan()">Reset Pilihan</button>
+                </div>
 
                 <div id="cr-loading" class="loading-spinner" style="display: none;">
                     <div class="spinner"></div>
@@ -123,23 +127,149 @@
         // Harus sama persis dengan MODEL_FEATURES di app.py
         const MODEL_FEATURES = ['equipment_type', 'category', 'part', 'asset_owner', 'ou', 'facility'];
 
-        // Isi dropdown dari vocabulary model supaya pilihan selalu sinkron dengan training
+        let modelOptions = {};      // vocabulary model, cadangan bila master tidak ada
+        let master = null;          // {fields, values, rows} kombinasi peralatan nyata
+        let masterIndex = null;     // nilai -> indeks, untuk menyaring baris
+        let asingPerModel = {};     // nilai di luar cakupan training tiap model
+        let asingSet = {};          // field -> Set nilai yg ada model tak mengenalnya
+
+        /** Field yang pilihannya berasal dari data master (saling menyaring). */
+        function masterFields() {
+            return master ? master.fields : [];
+        }
+
+        /**
+         * Nilai yang masih mungkin untuk satu field, dengan mempertimbangkan
+         * pilihan pada field lain. Inilah yang membuat dropdown saling menyaring:
+         * memilih OU otomatis menyisakan facility milik OU tersebut saja.
+         */
+        function nilaiTersedia(field, pilihan) {
+            const fields = master.fields;
+            const target = fields.indexOf(field);
+
+            // Ubah pilihan aktif menjadi indeks; abaikan field target itu sendiri.
+            const filter = [];
+            fields.forEach((f, i) => {
+                if (f === field) return;
+                const v = pilihan[f];
+                if (!v) return;
+                const idx = masterIndex[f][v];
+                if (idx !== undefined) filter.push([i, idx]);
+            });
+
+            const terpakai = new Set();
+            for (const row of master.rows) {
+                let cocok = true;
+                for (const [i, idx] of filter) {
+                    if (row[i] !== idx) { cocok = false; break; }
+                }
+                if (cocok) terpakai.add(row[target]);
+            }
+            return [...terpakai].map(i => master.values[field][i]).sort();
+        }
+
+        /** Model mana saja yang tidak mengenal satu nilai. */
+        function modelTakKenal(field, nilai) {
+            const out = [];
+            if ((asingPerModel.short_term?.[field] || []).includes(nilai)) out.push('short-term');
+            if ((asingPerModel.long_term?.[field] || []).includes(nilai)) out.push('long-term');
+            return out;
+        }
+
+        function isiSelect(select, nilai, terpilih, field) {
+            select.innerHTML = '';
+
+            const kosong = document.createElement('option');
+            kosong.value = '';
+            kosong.textContent = `-- Pilih (${nilai.length}) --`;
+            select.appendChild(kosong);
+
+            const asing = asingSet[field];
+            nilai.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                // Tandai nilai yang di luar cakupan training salah satu model,
+                // supaya terlihat sebelum menghitung — bukan setelah hasil keluar.
+                if (asing && asing.has(v)) {
+                    opt.textContent = v + '  ⚠ ' + modelTakKenal(field, v).join(' & ') + ' kurang akurat';
+                } else {
+                    opt.textContent = v;
+                }
+                if (v === terpilih) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        /** Bangun ulang seluruh dropdown master sesuai pilihan yang aktif. */
+        function segarkanDropdown() {
+            if (!master) return;
+
+            const pilihan = {};
+            masterFields().forEach(f => {
+                const el = document.getElementById(f);
+                if (el && el.value) pilihan[f] = el.value;
+            });
+
+            masterFields().forEach(f => {
+                const el = document.getElementById(f);
+                if (!el) return;
+                const nilai = nilaiTersedia(f, pilihan);
+                // Pilihan lama dipertahankan hanya bila masih valid
+                const terpilih = nilai.includes(pilihan[f]) ? pilihan[f] : '';
+                isiSelect(el, nilai, terpilih, f);
+            });
+
+            const info = document.getElementById('cr-master-info');
+            if (info) {
+                const cocok = master.rows.filter(row =>
+                    master.fields.every((f, i) => {
+                        const v = pilihan[f];
+                        return !v || row[i] === masterIndex[f][v];
+                    })
+                ).length;
+                info.textContent =
+                    `${cocok} dari ${master.rows.length} kombinasi peralatan cocok dengan pilihan saat ini.`;
+            }
+        }
+
         async function loadModelOptions() {
             try {
                 const res = await fetch('/api/model-options');
                 const json = await res.json();
                 if (!json.success) throw new Error('Gagal memuat pilihan model');
 
-                MODEL_FEATURES.forEach(feature => {
-                    const select = document.getElementById(feature);
-                    const options = json.options[feature] || [];
-                    select.innerHTML = '';
-                    options.forEach(value => {
-                        const opt = document.createElement('option');
-                        opt.value = value;
-                        opt.textContent = value;
-                        select.appendChild(opt);
+                modelOptions = json.options || {};
+                master = json.master || null;
+                asingPerModel = json.master_unknown_per_model || {};
+
+                // Gabungkan jadi Set per field agar pengecekan saat render cepat
+                asingSet = {};
+                Object.values(asingPerModel).forEach(perField => {
+                    Object.entries(perField).forEach(([field, nilai]) => {
+                        asingSet[field] = asingSet[field] || new Set();
+                        nilai.forEach(v => asingSet[field].add(v));
                     });
+                });
+
+                if (master) {
+                    masterIndex = {};
+                    master.fields.forEach(f => {
+                        masterIndex[f] = {};
+                        master.values[f].forEach((v, i) => { masterIndex[f][v] = i; });
+                    });
+                    master.fields.forEach(f => {
+                        const el = document.getElementById(f);
+                        if (el) el.addEventListener('change', segarkanDropdown);
+                    });
+                    segarkanDropdown();
+                }
+
+                // 'part' tidak ada di data master, jadi tetap dari vocabulary model.
+                const fieldModelSaja = MODEL_FEATURES.filter(f => !masterFields().includes(f));
+                fieldModelSaja.forEach(f => {
+                    const el = document.getElementById(f);
+                    if (!el) return;
+                    isiSelect(el, modelOptions[f] || [], '', f);
                 });
 
                 if (!json.models_loaded.short_term || !json.models_loaded.long_term) {
@@ -153,6 +283,15 @@
             }
         }
 
+        function resetPilihan() {
+            MODEL_FEATURES.forEach(f => {
+                const el = document.getElementById(f);
+                if (el) el.value = '';
+            });
+            segarkanDropdown();
+            document.getElementById('cr-resultSection').style.display = 'none';
+        }
+
         document.addEventListener('DOMContentLoaded', loadModelOptions);
 
         async function hitungLajuKorosi() {
@@ -161,9 +300,17 @@
             const minThickness = parseFloat(document.getElementById('min_thickness').value);
 
             const payload = {};
+            const belumDiisi = [];
             MODEL_FEATURES.forEach(feature => {
-                payload[feature] = document.getElementById(feature).value;
+                const nilai = document.getElementById(feature).value;
+                if (!nilai) belumDiisi.push(feature);
+                payload[feature] = nilai;
             });
+
+            if (belumDiisi.length) {
+                showError('cr-error', 'Lengkapi dulu: ' + belumDiisi.join(', '));
+                return;
+            }
 
             const loadingEl = document.getElementById('cr-loading');
             const errorEl = document.getElementById('cr-error');

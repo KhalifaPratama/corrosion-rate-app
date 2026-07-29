@@ -54,8 +54,11 @@ model - ltcr - p50_random forest.ipynb
 model - fluid sampling - SLN.ipynb
 model - fluid sampling - SLS.ipynb
 
-# Data training (berisi data operasional internal)
+# Data training & referensi (berisi data operasional internal).
+# dataPeralatan.xlsx hanya rujukan sementara untuk menyusun equipment_master.json;
+# aplikasi tidak membacanya saat runtime.
 data.xlsx
+dataPeralatan.xlsx
 
 # File kunci sementara Excel (muncul saat workbook sedang dibuka)
 ~$*

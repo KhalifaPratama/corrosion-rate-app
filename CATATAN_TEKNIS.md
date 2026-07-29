@@ -87,6 +87,47 @@ menentukan seberapa konservatif rekomendasi inspeksi yang dihasilkan.
 
 ---
 
+### P3b. Cakupan data STCR jauh lebih sempit daripada LTCR
+
+**Status: dampaknya sudah ditandai di UI, akar masalahnya belum diperbaiki.**
+
+Kedua model corrosion calculator memakai 6 fitur yang sama, tetapi dilatih pada
+data dengan cakupan yang sangat berbeda:
+
+| Fitur | Dikenal STCR | Dikenal LTCR |
+|---|---|---|
+| equipment_type | 3 — **FFC tidak ada sama sekali** | 4 |
+| facility | 91 | 191 |
+| category | 33 | 48 |
+| asset_owner | 11 | 16 |
+
+Karena `handle_unknown='ignore'`, nilai di luar cakupan tidak menimbulkan error
+tetapi di-encode nol sehingga kontribusinya hilang. Akibatnya untuk sebagian
+peralatan yang benar-benar ada di lapangan, **angka short-term jauh kurang dapat
+dipercaya daripada long-term**, padahal keduanya ditampilkan berdampingan
+seolah setara.
+
+Dari 901 kombinasi di `equipment_master.json`, ada **119 nilai** yang di luar
+cakupan salah satu model — 118 di antaranya milik STCR (96 facility, 16
+category, 5 asset_owner, 1 equipment_type), dan hanya 1 milik LTCR
+(`Water Seal`).
+
+Penanganan sementara: nilai seperti itu diberi tanda `⚠ short-term kurang
+akurat` langsung di dropdown, sehingga terlihat sebelum menekan Hitung, bukan
+baru diketahui setelah hasil keluar.
+
+Yang perlu dilakukan: latih ulang STCR memakai cakupan data seluas LTCR.
+Perbaikan ini sekaligus menghapus seluruh 119 penanda tersebut. Perlu ditelusuri
+lebih dulu mengapa data training short-term jauh lebih sedikit — apakah memang
+pengukuran short-term belum tersedia untuk fasilitas-fasilitas itu, atau ada
+penyaringan yang tidak disengaja saat menyiapkan data.
+
+Catatan: selama FFC belum dikenal STCR, jenis peralatan itu tetap ditampilkan
+(peralatannya nyata ada) tetapi angka short-term-nya perlu diperlakukan sebagai
+indikasi kasar saja.
+
+---
+
 ### P4. Model umum fluid sampling (`corrosion-rate.pkl`) belum tervalidasi
 
 **Status: masih dipakai untuk OU HO, HCT, FM, PGT.**
@@ -241,47 +282,6 @@ model - fluid sampling - SLS.ipynb.bak
 
 ## Bagian 3 — Yang sudah diperbaiki
 
-### Kredensial database dikeluarkan dari kode dan riwayat git
-
-Enam notebook memuat host, nama database, user, dan password dalam teks biasa.
-Dua di antaranya (`model - short-term.ipynb`, `model - long-term.ipynb`) sudah
-ter-commit sejak commit awal dan ter-push ke GitHub — kredensialnya muncul di
-**seluruh 7 commit**.
-
-Yang dikerjakan:
-
-1. Keenam notebook kini membaca kredensial dari `.env` lewat `python-dotenv`,
-   dan berhenti dengan pesan jelas bila konfigurasinya belum diisi.
-
-   ```python
-   load_dotenv()
-   conn = psycopg2.connect(
-       host=os.getenv("DB_HOST"),
-       password=os.getenv("DB_PASSWORD"),
-       ...
-   )
-   ```
-
-2. Dua bug `.gitignore` diperbaiki. Baris `model - long-term.ipynbclear` salah
-   ketik sehingga file itu tidak pernah terabaikan. Sementara
-   `model - short-term.ipynb` sudah terlanjur dilacak git — **`.gitignore` tidak
-   berlaku untuk file yang sudah masuk index**, itu sebabnya tetap ter-commit.
-   Kini seluruh notebook training dan `data.xlsx` diabaikan.
-
-3. Riwayat git ditulis ulang dengan `git filter-repo`, menghapus kedua notebook
-   dari ketujuh commit. Notebook tetap utuh di disk, hanya tidak lagi dilacak.
-
-Verifikasi setelah pembersihan:
-
-```
-alamat host   : 0 temuan
-nama database : 0 temuan
-'password'    : 0 temuan
-```
-
-**Sisa tindakan: ganti password database (lihat P1).** Pembersihan riwayat tidak
-membatalkan kebocoran yang sudah terjadi.
-
 ### Virtual environment rusak setelah folder dipindah
 
 `activate.bat` dan `activate` masih menunjuk path lama. Diperbaiki ke path
@@ -373,9 +373,8 @@ Diverifikasi: 8 uji model per-OU + 4 uji model umum + kompatibilitas alias lama
 |---|---|---|
 | P2 | Data fluid sampling terlalu sedikit | Tambah sampel |
 | P3 | p90 vs p50 tidak konsisten | Putuskan bersama engineer integritas |
+| P3b | Cakupan data STCR jauh lebih sempit | Latih ulang STCR seluas LTCR |
 | P4 | SVR umum tanpa scaling | Latih ulang dengan `StandardScaler` |
 | P5 | Model lama bernilai mustahil | Arsipkan atau hapus |
 | P6 | Template mati | Hapus |
 
-Penanganan kredensial selebihnya (kode, `.gitignore`, riwayat git) sudah selesai
-— rinciannya di Bagian 3.
