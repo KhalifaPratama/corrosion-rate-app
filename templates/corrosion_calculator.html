@@ -15,225 +15,320 @@
                 <li><a href="/">Home</a></li>
                 <li><a href="/corrosion-calculator" class="active">Corrosion Calculator</a></li>
                 <li><a href="/fluid-sampling">Fluid Sampling</a></li>
-                <li><a href="/short-term">Short Term</a></li>
-                <li><a href="/long-term">Long Term</a></li>
             </ul>
         </div>
     </nav>
 
     <div class="main-container">
         <h2>Corrosion Rate Calculator</h2>
-        <p class="page-description">Hitung laju korosi dan proyeksi ketebalan equipment</p>
-        
-        <div class="header-inputs">
-            <div class="field-group">
-                <label>Equipment</label>
-                <select id="equipmentSelector">
-                    <option value="ST">Storage Tank</option>
-                    <option value="PV">Pressure Vessel</option>
-                    <option value="HEX">Heat Exchanger</option>
-                    <option value="FFC">Fin Fan Cooler</option>
-                    <option value="Stack">Stack</option>
-                </select>
+        <p class="page-description">Satu form, dua prediksi — short-term & long-term sekaligus, lengkap dengan proyeksi ketebalan.</p>
+
+        <div id="panel-corrosion" class="calculator-section">
+            <div class="calculator-section-header">
+                <span class="section-icon">🧪</span>
+                <div>
+                    <h2>Kalkulator Laju Korosi</h2>
+                    <span class="section-badge">Short-Term &amp; Long-Term (ML)</span>
+                </div>
             </div>
-            <div class="field-group">
-                <label>Part</label>
-                <select id="partSelector" onchange="updateFormDisplay()">
-                    <option value="bottom">Bottom</option>
-                    <option value="shell">Shell</option>
-                    <option value="roof">Roof</option>
-                </select>
-            </div>
-            <div class="field-group">
-                <label>Inspection Year</label>
-                <input type="number" id="year" value="2024" step="1">
-            </div>
-            <div class="field-group">
-                <label>Actual Thickness (mm)</label>
-                <input type="number" id="act_thick" value="10.0" step="0.1">
-            </div>
-            <div class="field-group">
-                <label>Minimal Thickness (mm)</label>
-                <input type="number" id="min_thick" value="2.5" step="0.1">
+            <div class="calculator-section-body">
+                <div class="info-banner">
+                    <strong>ℹ️ Info:</strong> Enam parameter di bawah (Jenis Peralatan, Kategori, Bagian, Asset Owner, Operating Unit, Facility) adalah input model Machine Learning — persis seperti saat training — untuk menghitung laju korosi short-term (p90) dan long-term (p50) sekaligus. Tahun Inspeksi dan Ketebalan hanya dipakai untuk proyeksi grafik ketebalan.
+                </div>
+
+                <div class="form-section">
+                    <h3>Parameter Model (6 Input)</h3>
+                    <div class="field-group">
+                        <label>Jenis Peralatan (Equipment Type) *</label>
+                        <select id="equipment_type" required></select>
+                    </div>
+                    <div class="field-group">
+                        <label>Kategori (Category) *</label>
+                        <select id="category" required></select>
+                    </div>
+                    <div class="field-group">
+                        <label>Bagian (Part) *</label>
+                        <select id="part" required></select>
+                    </div>
+                    <div class="field-group">
+                        <label>Asset Owner *</label>
+                        <select id="asset_owner" required></select>
+                    </div>
+                    <div class="field-group">
+                        <label>Operating Unit (OU) *</label>
+                        <select id="ou" required></select>
+                    </div>
+                    <div class="field-group">
+                        <label>Facility *</label>
+                        <select id="facility" required></select>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Parameter Proyeksi Ketebalan</h3>
+                    <div class="field-group">
+                        <label>Tahun Inspeksi *</label>
+                        <input type="number" id="year" value="2026" step="1">
+                    </div>
+                    <div class="field-group">
+                        <label>Ketebalan Saat Ini (mm) *</label>
+                        <input type="number" id="current_thickness" value="10.0" step="0.01">
+                    </div>
+                    <div class="field-group">
+                        <label>Ketebalan Minimum / T-Min (mm) *</label>
+                        <input type="number" id="min_thickness" value="2.5" step="0.01">
+                    </div>
+                </div>
+
+                <button class="btn-predict" onclick="hitungLajuKorosi()">Hitung Laju Korosi</button>
+
+                <div id="cr-loading" class="loading-spinner" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Memproses prediksi...</p>
+                </div>
+
+                <div id="cr-error" class="error-banner" style="display: none;"></div>
+
+                <div id="cr-resultSection" class="result-section" style="display: none;">
+                    <h3>Hasil Analisis</h3>
+                    <p class="analysis-summary" id="cr-summary"></p>
+
+                    <div class="prediction-result">
+                        <div class="result-card">
+                            <div class="result-label">Long-Term Corrosion Rate (p50)</div>
+                            <div class="result-value" id="lt-rate">0.000</div>
+                            <div class="result-unit">mm/tahun</div>
+                            <div class="result-footnote">Sisa umur ≈ <strong id="lt-life">-</strong> tahun · Est. retire <strong id="lt-retire">-</strong></div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-label">Short-Term Corrosion Rate (p90)</div>
+                            <div class="result-value" id="st-rate">0.000</div>
+                            <div class="result-unit">mm/tahun</div>
+                            <div class="result-footnote">Sisa umur ≈ <strong id="st-life">-</strong> tahun · Est. retire <strong id="st-retire">-</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <h4>Proyeksi Ketebalan: Short-Term vs Long-Term</h4>
+                        <canvas id="projectionChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div id="section-bottom" class="form-section">
-            <h3>Bottom Parameters</h3>
-            <div class="field-group">
-                <label>SRB Count</label>
-                <input type="number" id="srb" value="1000">
-            </div>
-            <div class="field-group">
-                <label>Soil Resistivity (Ω-cm)</label>
-                <input type="number" id="soil_res" value="5000">
-            </div>
-        </div>
-
-        <div id="section-shell" class="form-section hidden">
-            <h3>Shell Parameters</h3>
-            <div class="field-group">
-                <label>Operating Temperature (°C)</label>
-                <input type="number" id="temp" value="40" step="0.1">
-            </div>
-            <div class="field-group">
-                <label>Water Content (%)</label>
-                <input type="number" id="water" value="0.5" step="0.1">
-            </div>
-        </div>
-
-        <div id="section-roof" class="form-section hidden">
-            <h3>Roof Parameters</h3>
-            <div class="field-group">
-                <label>H2S Concentration (ppm)</label>
-                <input type="number" id="h2s" value="10" step="0.1">
-            </div>
-            <div class="field-group">
-                <label>Humidity Level (%)</label>
-                <input type="number" id="humidity" value="80" step="1">
-            </div>
-        </div>
-
-        <button class="btn-predict" onclick="calculateCorrosion()">Calculate Corrosion Rate</button>
-
-        <div class="result-box" id="results">
-            <div class="result-item">
-                <span>Equipment</span>
-                <strong id="res-eq">Storage Tank</strong>
-            </div>
-            <div class="result-item">
-                <span>Part</span>
-                <strong id="res-part">Bottom</strong>
-            </div>
-            <div class="result-item">
-                <span>Corrosion Rate</span>
-                <strong id="res-cr">0.000</strong> mmpy
-            </div>
-            <div class="result-item">
-                <span>Remaining Life</span>
-                <strong id="res-rl">0.0</strong> years
-            </div>
-            <div class="result-item">
-                <span>Retirement Year</span>
-                <strong id="res-retire">2050</strong>
-            </div>
-        </div>
-
-        <canvas id="corrosionChart"></canvas>
     </div>
 
     <script>
-        function updateFormDisplay() {
-            const selected = document.getElementById('partSelector').value;
-            
-            document.getElementById('section-bottom').classList.add('hidden');
-            document.getElementById('section-shell').classList.add('hidden');
-            document.getElementById('section-roof').classList.add('hidden');
+        let projectionChart;
 
-            document.getElementById('section-' + selected).classList.remove('hidden');
-        }
+        // Harus sama persis dengan MODEL_FEATURES di app.py
+        const MODEL_FEATURES = ['equipment_type', 'category', 'part', 'asset_owner', 'ou', 'facility'];
 
-        let myChart;
-
-        async function calculateCorrosion() {
-            const eqSelect = document.getElementById('equipmentSelector');
-            const partSelect = document.getElementById('partSelector');
-
-            const equipmentText = eqSelect.options[eqSelect.selectedIndex].text;
-            const partText = partSelect.options[partSelect.selectedIndex].text;
-
-            const partValue = partSelect.value;
-            const startYear = parseInt(document.getElementById('year').value) || new Date().getFullYear();
-            const t_act = parseFloat(document.getElementById('act_thick').value);
-            const t_min = parseFloat(document.getElementById('min_thick').value);
-            
-            let requestData = {
-                part: partValue,
-                actual_thickness: t_act,
-                min_thickness: t_min,
-                year: startYear
-            };
-
-            if (partValue === 'bottom') {
-                requestData.soil_resistivity = parseFloat(document.getElementById('soil_res').value);
-                requestData.srb_count = parseFloat(document.getElementById('srb').value);
-            } else if (partValue === 'shell') {
-                requestData.temperature = parseFloat(document.getElementById('temp').value);
-                requestData.water_content = parseFloat(document.getElementById('water').value);
-            } else if (partValue === 'roof') {
-                requestData.h2s = parseFloat(document.getElementById('h2s').value);
-                requestData.humidity = parseFloat(document.getElementById('humidity').value);
-            }
-
+        // Isi dropdown dari vocabulary model supaya pilihan selalu sinkron dengan training
+        async function loadModelOptions() {
             try {
-                const response = await fetch('/api/calculate-corrosion', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(requestData)
+                const res = await fetch('/api/model-options');
+                const json = await res.json();
+                if (!json.success) throw new Error('Gagal memuat pilihan model');
+
+                MODEL_FEATURES.forEach(feature => {
+                    const select = document.getElementById(feature);
+                    const options = json.options[feature] || [];
+                    select.innerHTML = '';
+                    options.forEach(value => {
+                        const opt = document.createElement('option');
+                        opt.value = value;
+                        opt.textContent = value;
+                        select.appendChild(opt);
+                    });
                 });
 
-                const result = await response.json();
-
-                if (result.success) {
-                    document.getElementById('res-eq').innerText = equipmentText;
-                    document.getElementById('res-part').innerText = partText;
-                    document.getElementById('res-cr').innerText = result.corrosion_rate;
-                    document.getElementById('res-rl').innerText = result.remaining_life;
-                    document.getElementById('res-retire').innerText = result.retirement_year;
-
-                    generateChart(startYear, t_act, t_min, result.corrosion_rate);
-                } else {
-                    alert('Error: ' + result.error);
+                if (!json.models_loaded.short_term || !json.models_loaded.long_term) {
+                    const which = [];
+                    if (!json.models_loaded.short_term) which.push('Short-Term');
+                    if (!json.models_loaded.long_term) which.push('Long-Term');
+                    showError('cr-error', 'Model belum dimuat: ' + which.join(' & ') + '. Cek log server.');
                 }
             } catch (error) {
-                alert('Error calculating corrosion: ' + error.message);
+                showError('cr-error', 'Gagal memuat pilihan parameter: ' + error.message);
             }
         }
 
-        function generateChart(startYear, t_act, t_min, cr) {
-            const ctx = document.getElementById('corrosionChart').getContext('2d');
-            const yearsRange = Array.from({length: 25}, (_, i) => i);
-            const labelsYear = yearsRange.map(y => startYear + y);
-            const dataThick = yearsRange.map(y => {
-                let val = t_act - (cr * y);
-                return val > 0 ? val.toFixed(2) : 0;
+        document.addEventListener('DOMContentLoaded', loadModelOptions);
+
+        async function hitungLajuKorosi() {
+            const year = parseInt(document.getElementById('year').value) || new Date().getFullYear();
+            const thickness = parseFloat(document.getElementById('current_thickness').value);
+            const minThickness = parseFloat(document.getElementById('min_thickness').value);
+
+            const payload = {};
+            MODEL_FEATURES.forEach(feature => {
+                payload[feature] = document.getElementById(feature).value;
             });
 
-            if (myChart) myChart.destroy();
+            const loadingEl = document.getElementById('cr-loading');
+            const errorEl = document.getElementById('cr-error');
+            const resultEl = document.getElementById('cr-resultSection');
 
-            myChart = new Chart(ctx, {
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            resultEl.style.display = 'none';
+
+            try {
+                const [stJson, ltJson] = await Promise.all([
+                    fetch('/api/predict-short-term', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    }).then(r => r.json()),
+                    fetch('/api/predict-long-term', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    }).then(r => r.json())
+                ]);
+
+                if (!stJson.success && !ltJson.success) {
+                    showError('cr-error', stJson.error || ltJson.error || 'Prediksi gagal diproses.');
+                    return;
+                }
+
+                document.getElementById('cr-summary').innerHTML =
+                    'Analisis untuk <strong>' + payload.equipment_type + ' &mdash; ' + payload.category +
+                    ' (' + payload.part + ')</strong>, owner <strong>' + payload.asset_owner +
+                    '</strong>, OU <strong>' + payload.ou + '</strong>, facility <strong>' +
+                    payload.facility + '</strong> pada tahun ' + year + '.';
+
+                const ltRate = renderResult('lt', ltJson, year, thickness, minThickness);
+                const stRate = renderResult('st', stJson, year, thickness, minThickness);
+
+                resultEl.style.display = 'block';
+                generateProjectionChart(year, thickness, minThickness, stRate, ltRate);
+
+                // Kumpulkan peringatan: model gagal, atau nilai di luar vocabulary training
+                const warnings = [];
+                if (!ltJson.success) warnings.push('Long-Term: ' + ltJson.error);
+                if (!stJson.success) warnings.push('Short-Term: ' + stJson.error);
+
+                [['Short-Term', stJson], ['Long-Term', ltJson]].forEach(([label, json]) => {
+                    const unknown = (json.success && json.unknown_values) || {};
+                    const fields = Object.keys(unknown);
+                    if (fields.length) {
+                        warnings.push(
+                            label + ': nilai ' +
+                            fields.map(f => f + '="' + unknown[f] + '"').join(', ') +
+                            ' tidak ada di data training model ini, jadi diabaikan (akurasi menurun).'
+                        );
+                    }
+                });
+
+                if (warnings.length) showError('cr-error', warnings.join(' | '));
+
+            } catch (error) {
+                showError('cr-error', error.message);
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        /**
+         * Tampilkan satu kartu hasil. Mengembalikan laju korosi (mm/tahun),
+         * atau null bila prediksi gagal.
+         */
+        function renderResult(prefix, json, year, thickness, minThickness) {
+            const rateEl = document.getElementById(prefix + '-rate');
+            const lifeEl = document.getElementById(prefix + '-life');
+            const retireEl = document.getElementById(prefix + '-retire');
+
+            if (!json.success) {
+                rateEl.textContent = '—';
+                lifeEl.textContent = '-';
+                retireEl.textContent = '-';
+                return null;
+            }
+
+            const rate = json.predicted_corrosion_rate;
+            rateEl.textContent = rate.toFixed(4);
+
+            // Laju nol/negatif berarti tidak ada penipisan -> sisa umur tak terhingga
+            if (!(rate > 0)) {
+                lifeEl.textContent = '∞';
+                retireEl.textContent = '-';
+                return rate;
+            }
+
+            const life = Math.max(0, (thickness - minThickness) / rate);
+            lifeEl.textContent = life.toFixed(1);
+            retireEl.textContent = year + Math.floor(life);
+            return rate;
+        }
+
+        function showError(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = '⚠️ ' + message;
+            el.style.display = 'block';
+        }
+
+        function generateProjectionChart(startYear, thickness, minThickness, stRate, ltRate) {
+            const ctx = document.getElementById('projectionChart').getContext('2d');
+            const span = 10;
+            const yearsRange = Array.from({length: span + 1}, (_, i) => i);
+            const labels = yearsRange.map(y => startYear + y);
+
+            const datasets = [];
+
+            if (stRate !== null) {
+                datasets.push({
+                    label: 'Proyeksi (Short-Term Rate)',
+                    data: yearsRange.map(y => Math.max(0, thickness - stRate * y)),
+                    borderColor: '#e67e22',
+                    backgroundColor: 'rgba(230, 126, 34, 0.08)',
+                    fill: false,
+                    tension: 0.1
+                });
+            }
+
+            if (ltRate !== null) {
+                datasets.push({
+                    label: 'Proyeksi (Long-Term Rate)',
+                    data: yearsRange.map(y => Math.max(0, thickness - ltRate * y)),
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.08)',
+                    fill: false,
+                    tension: 0.1
+                });
+            }
+
+            datasets.push({
+                label: 'Ketebalan Minimum',
+                data: yearsRange.map(() => minThickness),
+                borderColor: '#e74c3c',
+                borderDash: [5, 5],
+                pointRadius: 0
+            });
+
+            if (projectionChart) projectionChart.destroy();
+
+            projectionChart = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: labelsYear,
-                    datasets: [{
-                        label: 'Thickness Projection (mm)',
-                        data: dataThick,
-                        borderColor: '#3498db',
-                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                        fill: true,
-                        tension: 0.1
-                    }, {
-                        label: 'Minimal Thickness',
-                        data: yearsRange.map(() => t_min),
-                        borderColor: '#e74c3c',
-                        borderDash: [5, 5],
-                        pointRadius: 0
-                    }]
-                },
+                data: { labels: labels, datasets: datasets },
                 options: {
                     responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Proyeksi ' + span + ' Tahun ke Depan'
+                        }
+                    },
                     scales: {
-                        x: { title: { display: true, text: 'Year' } },
-                        y: { title: { display: true, text: 'Thickness (mm)' }, beginAtZero: true, suggestedMax: t_act + 2 }
+                        x: { title: { display: true, text: 'Tahun' } },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Ketebalan (mm)' }
+                        }
                     }
                 }
             });
         }
-
-        window.onload = () => {
-            updateFormDisplay();
-            calculateCorrosion();
-        };
     </script>
 </body>
 </html>

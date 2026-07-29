@@ -40,11 +40,25 @@ desktop.ini
 
 # Jupyter Notebook
 .ipynb_checkpoints
-model - long-term copy.ipynb
-model - short-term copy.ipynb
+testing.ipynb
+
+# Notebook training: jangan di-commit.
+# Berisi kueri ke database internal dan pernah memuat kredensial.
+# Kredensial kini dibaca dari .env, tapi notebook tetap tidak perlu masuk repo.
 model - long-term.ipynb
 model - short-term.ipynb
-testing.ipynb
+model - long-term copy.ipynb
+model - short-term copy.ipynb
+model - stcr - p90_xgboost.ipynb
+model - ltcr - p50_random forest.ipynb
+model - fluid sampling - SLN.ipynb
+model - fluid sampling - SLS.ipynb
+
+# Data training (berisi data operasional internal)
+data.xlsx
+
+# File kunci sementara Excel (muncul saat workbook sedang dibuka)
+~$*
 
 # PyInstaller
 *.spec

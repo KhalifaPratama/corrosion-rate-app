@@ -15,8 +15,6 @@
                 <li><a href="/">Home</a></li>
                 <li><a href="/corrosion-calculator">Corrosion Calculator</a></li>
                 <li><a href="/fluid-sampling" class="active">Fluid Sampling</a></li>
-                <li><a href="/short-term">Short Term</a></li>
-                <li><a href="/long-term">Long Term</a></li>
             </ul>
         </div>
     </nav>
@@ -76,72 +74,20 @@
         </div>
 
         <div class="form-section">
-            <h3>Parameter Fluida (10 Input Features)</h3>
-            
-            <div class="field-group">
-                <label>Cation Anion Balance</label>
-                <input type="number" id="cation_anion_balance" value="0" step="0.1" placeholder="e.g., 0">
-                <small>Balance between cations and anions in the fluid</small>
-            </div>
+            <h3 id="fluid-params-title">Parameter Fluida</h3>
+            <p id="model-info-banner" class="page-description"></p>
 
-            <div class="field-group">
-                <label>HCO₃ (Bicarbonate) - ppm</label>
-                <input type="number" id="hco3" value="120" step="1" placeholder="e.g., 120">
-                <small>Bicarbonate concentration in parts per million</small>
-            </div>
+            <!-- Field dibuat otomatis dari /api/fluid-model-info sesuai OU terpilih,
+                 supaya selalu cocok dengan fitur model yang sedang dipakai. -->
+            <div id="fluid-params"></div>
+        </div>
 
-            <div class="field-group">
-                <label>Density - g/cm³</label>
-                <input type="number" id="density" value="1.02" step="0.01" placeholder="e.g., 1.02">
-                <small>Fluid density in grams per cubic centimeter</small>
-            </div>
+        <div class="form-section">
+            <h3>Parameter Proyeksi Ketebalan</h3>
 
-            <div class="field-group">
-                <label>Resistivity - Ω·m</label>
-                <input type="number" id="resistivity" value="3000" step="100" placeholder="e.g., 3000">
-                <small>Electrical resistivity in ohm-meters</small>
-            </div>
-
-            <div class="field-group">
-                <label>pH</label>
-                <input type="number" id="ph" value="7.1" step="0.1" min="0" max="14" placeholder="e.g., 7.1">
-                <small>Acidity or alkalinity level (0-14 scale)</small>
-            </div>
-
-            <div class="field-group">
-                <label>Salinity - ppm</label>
-                <input type="number" id="salinity" value="15000" step="100" placeholder="e.g., 15000">
-                <small>Total dissolved salts in parts per million</small>
-            </div>
-
-            <div class="field-group">
-                <label>SO₄ (Sulfate) - ppm</label>
-                <input type="number" id="so4" value="50" step="1" placeholder="e.g., 50">
-                <small>Sulfate concentration in parts per million</small>
-            </div>
-
-            <div class="field-group">
-                <label>Ca (Calcium) - ppm</label>
-                <input type="number" id="ca" value="120" step="1" placeholder="e.g., 120">
-                <small>Calcium concentration in parts per million</small>
-            </div>
-
-            <div class="field-group">
-                <label>Mg (Magnesium) - ppm</label>
-                <input type="number" id="mg" value="80" step="1" placeholder="e.g., 80">
-                <small>Magnesium concentration in parts per million</small>
-            </div>
-
-            <div class="field-group">
-                <label>Acetic Acid - ppm</label>
-                <input type="number" id="acetic_acid" value="5" step="0.1" placeholder="e.g., 5">
-                <small>Acetic acid concentration in parts per million</small>
-            </div>
-
-            <!-- tambahan baru -->
             <div class="field-group">
                 <label>Inspection Year</label>
-                <input type="number" id="inspection_year" value="2025">
+                <input type="number" id="inspection_year" value="2026">
             </div>
 
             <div class="field-group">
@@ -180,6 +126,15 @@
                     <span class="result-value" id="predicted_rate">-</span>
                     <span class="result-unit">mm/year</span>
                 </div>
+                <div class="result-item" id="range_row" style="display: none;">
+                    <span class="result-label">Rentang wajar:</span>
+                    <span class="result-value" id="predicted_range">-</span>
+                    <span class="result-unit">mm/year</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Model dipakai:</span>
+                    <span class="result-value" id="model_used">-</span>
+                </div>
                 <div class="result-item">
                     <span class="result-label">Classification:</span>
                     <span class="result-value" id="classification">-</span>
@@ -199,6 +154,8 @@
                 </div>
             </div>
             
+            <div id="quality_note" class="info-banner" style="display: none;"></div>
+
             <div class="chart-container">
                 <canvas id="resultChart"></canvas>
             </div>
@@ -211,11 +168,11 @@
             <div class="info-grid">
                 <div class="info-card">
                     <h4>Model File</h4>
-                    <p>corrosion-rate.pkl</p>
+                    <p>SLN &amp; SLS: model khusus per-OU<br>OU lain: corrosion-rate.pkl</p>
                 </div>
                 <div class="info-card">
                     <h4>Input Features</h4>
-                    <p>10 parameter fluida kimia</p>
+                    <p>10 parameter kimia, menyesuaikan OU yang dipilih</p>
                 </div>
                 <div class="info-card">
                     <h4>Output</h4>
@@ -232,48 +189,153 @@
     <script>
         let resultChart = null;
 
+        // Metadata model dari server; menentukan field apa yang perlu diisi per OU.
+        let fluidModelInfo = null;
+
+        // Nilai contoh yang wajar per parameter, dipakai sbg default & "Load Example".
+        const CONTOH_NILAI = {
+            'Cation Anion Balance': 0, 'HCO3': 120, 'Density': 1.02,
+            'Resistivity': 3000, 'pH': 7.1, 'Salinity': 15000, 'SO4': 50,
+            'Ca': 120, 'Mg': 80, 'Acetic Acid': 5, 'Sr': 15, 'Na': 5000,
+            'Cl': 9000, 'CaCO3': 300, 'Temperature': 60, 'Conductivity': 25000,
+            'M-Alkalinity': 400, 'Sum of Cation': 250, 'SRB': 10
+        };
+
+        function idUntukFitur(nama) {
+            return 'p_' + nama.replace(/[^A-Za-z0-9]/g, '_');
+        }
+
+        /** Model mana yang dipakai untuk OU terpilih. */
+        function modelUntukOU(ou) {
+            if (!fluidModelInfo) return null;
+            return fluidModelInfo.models[ou] || fluidModelInfo.models['_default'] || null;
+        }
+
+        /** Bangun ulang field parameter sesuai model yang dipakai OU terpilih. */
+        function bangunFieldParameter() {
+            const ou = document.getElementById('ou').value;
+            const container = document.getElementById('fluid-params');
+            const judul = document.getElementById('fluid-params-title');
+            const banner = document.getElementById('model-info-banner');
+            const eqGroup = document.getElementById('equipment').closest('.field-group');
+
+            if (!fluidModelInfo) { container.innerHTML = ''; return; }
+
+            if (!ou) {
+                container.innerHTML = '';
+                judul.textContent = 'Parameter Fluida';
+                banner.textContent = 'Pilih Operating Unit terlebih dahulu — parameter yang diminta menyesuaikan model untuk OU tersebut.';
+                return;
+            }
+
+            const info = modelUntukOU(ou);
+            if (!info) {
+                container.innerHTML = '';
+                banner.textContent = 'Tidak ada model yang tersedia untuk OU ini.';
+                return;
+            }
+
+            const spesifik = Boolean(fluidModelInfo.models[ou]);
+            judul.textContent = `Parameter Fluida (${info.numeric_features.length} input)`;
+            banner.textContent = spesifik
+                ? `OU ${ou} memakai ${info.label.toLowerCase()} — dilatih dari ${info.train_samples} sampel khusus OU ini.`
+                : `OU ${ou} belum punya model khusus, jadi memakai ${info.label.toLowerCase()}.`;
+
+            // Equipment hanya dipakai model per-OU; sembunyikan bila tidak relevan.
+            if (info.needs_equipment) {
+                eqGroup.style.display = '';
+                const sel = document.getElementById('equipment');
+                const terpilih = sel.value;
+                sel.innerHTML = '<option value="">-- Pilih Equipment --</option>';
+                info.equipment_options.forEach(v => {
+                    const o = document.createElement('option');
+                    o.value = v; o.textContent = v;
+                    if (v === terpilih) o.selected = true;
+                    sel.appendChild(o);
+                });
+            } else {
+                eqGroup.style.display = 'none';
+            }
+
+            // Pertahankan nilai yang sudah diisi bila nama fiturnya sama
+            const lama = {};
+            container.querySelectorAll('input[data-feature]').forEach(el => {
+                lama[el.dataset.feature] = el.value;
+            });
+
+            container.innerHTML = '';
+            info.numeric_features.forEach(nama => {
+                const wrap = document.createElement('div');
+                wrap.className = 'field-group';
+
+                const label = document.createElement('label');
+                label.textContent = nama;
+                label.setAttribute('for', idUntukFitur(nama));
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = idUntukFitur(nama);
+                input.dataset.feature = nama;
+                input.step = 'any';
+                input.value = lama[nama] !== undefined
+                    ? lama[nama]
+                    : (CONTOH_NILAI[nama] !== undefined ? CONTOH_NILAI[nama] : '');
+
+                wrap.appendChild(label);
+                wrap.appendChild(input);
+                container.appendChild(wrap);
+            });
+        }
+
+        async function muatInfoModel() {
+            try {
+                const res = await fetch('/api/fluid-model-info');
+                const json = await res.json();
+                if (!json.success) throw new Error('Gagal memuat info model');
+                fluidModelInfo = json;
+                bangunFieldParameter();
+            } catch (error) {
+                showError('Gagal memuat konfigurasi model: ' + error.message);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            muatInfoModel();
+            document.getElementById('ou').addEventListener('change', bangunFieldParameter);
+        });
+
         async function predictCorrosionRate() {
-            // Validate required fields
             const equipment = document.getElementById('equipment').value;
             const part = document.getElementById('part').value;
             const ou = document.getElementById('ou').value;
 
-            if (!equipment || !part || !ou) {
-                showError('Error: Equipment, Part, dan OU harus dipilih!');
+            if (!ou || !part) {
+                showError('Error: Part dan OU harus dipilih!');
                 return;
             }
 
-            // Get all input values
-            const data = {
-                equipment: equipment,
-                part: part,
-                ou: ou,
-                cation_anion_balance: parseFloat(document.getElementById('cation_anion_balance').value),
-                hco3: parseFloat(document.getElementById('hco3').value),
-                density: parseFloat(document.getElementById('density').value),
-                resistivity: parseFloat(document.getElementById('resistivity').value),
-                ph: parseFloat(document.getElementById('ph').value),
-                salinity: parseFloat(document.getElementById('salinity').value),
-                so4: parseFloat(document.getElementById('so4').value),
-                ca: parseFloat(document.getElementById('ca').value),
-                mg: parseFloat(document.getElementById('mg').value),
-                acetic_acid: parseFloat(document.getElementById('acetic_acid').value)
-            };
-
-            // Validate numeric inputs only (not equipment, part, ou)
-            const numericFields = [
-                'cation_anion_balance', 'hco3', 'density', 'resistivity', 
-                'ph', 'salinity', 'so4', 'ca', 'mg', 'acetic_acid'
-            ];
-            
-            for (let field of numericFields) {
-                if (isNaN(data[field])) {
-                    showError(`Error: Field ${field} harus diisi dengan nilai numerik yang valid!`);
-                    return;
-                }
+            const info = modelUntukOU(ou);
+            if (!info) {
+                showError('Error: tidak ada model untuk OU ' + ou);
+                return;
+            }
+            if (info.needs_equipment && !equipment) {
+                showError('Error: Equipment harus dipilih!');
+                return;
             }
 
-            // Show loading
+            const data = { equipment: equipment, part: part, ou: ou };
+
+            for (const nama of info.numeric_features) {
+                const el = document.getElementById(idUntukFitur(nama));
+                const nilai = parseFloat(el ? el.value : '');
+                if (isNaN(nilai)) {
+                    showError(`Error: Field "${nama}" harus diisi dengan angka yang valid!`);
+                    return;
+                }
+                data[nama] = nilai;
+            }
+
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
             document.getElementById('error').style.display = 'none';
@@ -286,11 +348,10 @@
                 });
 
                 const result = await response.json();
-
                 document.getElementById('loading').style.display = 'none';
 
                 if (result.success) {
-                    displayResult(result.predicted_corrosion_rate, data);
+                    displayResult(result.predicted_corrosion_rate, data, result);
                 } else {
                     showError('Error: ' + result.error);
                 }
@@ -300,10 +361,38 @@
             }
         }
 
-        function displayResult(corrosionRate, inputData) {
+        function displayResult(corrosionRate, inputData, result) {
+            result = result || {};
             document.getElementById('result').style.display = 'block';
             document.getElementById('predicted_rate').textContent =
-                corrosionRate.toFixed(3);
+                corrosionRate.toFixed(4);
+
+            document.getElementById('model_used').textContent = result.model || '-';
+
+            // Rentang dari sebaran pohon Random Forest (hanya model per-OU)
+            const rangeRow = document.getElementById('range_row');
+            if (result.range) {
+                document.getElementById('predicted_range').textContent =
+                    result.range.low.toFixed(4) + ' – ' + result.range.high.toFixed(4);
+                rangeRow.style.display = '';
+            } else {
+                rangeRow.style.display = 'none';
+            }
+
+            // Catatan keterbatasan model, supaya angka tidak dibaca terlalu pasti
+            const noteEl = document.getElementById('quality_note');
+            const catatan = [];
+            if (result.quality_note) catatan.push('⚠️ ' + result.quality_note);
+            if (result.unknown_equipment) {
+                catatan.push('Equipment "' + result.unknown_equipment +
+                    '" tidak ada di data training model ini, jadi diabaikan.');
+            }
+            if (catatan.length) {
+                noteEl.innerHTML = catatan.join('<br>');
+                noteEl.style.display = 'block';
+            } else {
+                noteEl.style.display = 'none';
+            }
 
             let classification, recommendation;
 
@@ -439,38 +528,26 @@
             document.getElementById('equipment').value = '';
             document.getElementById('part').value = '';
             document.getElementById('ou').value = '';
-            document.getElementById('cation_anion_balance').value = '0';
-            document.getElementById('hco3').value = '120';
-            document.getElementById('density').value = '1.02';
-            document.getElementById('resistivity').value = '3000';
-            document.getElementById('ph').value = '7.1';
-            document.getElementById('salinity').value = '15000';
-            document.getElementById('so4').value = '50';
-            document.getElementById('ca').value = '120';
-            document.getElementById('mg').value = '80';
-            document.getElementById('acetic_acid').value = '5';
-            
+
+            bangunFieldParameter();   // kosongkan & bangun ulang sesuai OU
+
             document.getElementById('result').style.display = 'none';
             document.getElementById('error').style.display = 'none';
         }
 
         function loadExample() {
-            // Example 1: Low corrosion scenario
-            document.getElementById('equipment').value = 'Storage Tank';
             document.getElementById('part').value = 'Shell';
-            document.getElementById('ou').value = 'HO';
-            document.getElementById('cation_anion_balance').value = '0.5';
-            document.getElementById('hco3').value = '150';
-            document.getElementById('density').value = '1.01';
-            document.getElementById('resistivity').value = '4000';
-            document.getElementById('ph').value = '7.5';
-            document.getElementById('salinity').value = '12000';
-            document.getElementById('so4').value = '40';
-            document.getElementById('ca').value = '100';
-            document.getElementById('mg').value = '60';
-            document.getElementById('acetic_acid').value = '3';
-            
-            showError('Example data loaded! Click "Prediksi Corrosion Rate" to see results.');
+            document.getElementById('ou').value = 'SLN';
+            bangunFieldParameter();
+            document.getElementById('equipment').value = 'Storage Tank';
+
+            // Isi setiap field dengan nilai contoh yang wajar
+            document.querySelectorAll('#fluid-params input[data-feature]').forEach(el => {
+                const contoh = CONTOH_NILAI[el.dataset.feature];
+                if (contoh !== undefined) el.value = contoh;
+            });
+
+            showError('Contoh data dimuat (OU SLN). Klik "Prediksi Corrosion Rate" untuk melihat hasil.');
         }
 
         // Add Enter key support

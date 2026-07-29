@@ -46,46 +46,82 @@ except ImportError:
     print("ℹ️ flask-compress not installed. Install with: pip install flask-compress")
 
 # Load models (only if joblib is available)
-MODEL_STR = os.path.join(base_path, 'model_str.joblib')
-MODEL_LTR = os.path.join(base_path, 'model_ltr.joblib')
+# Short-Term  : 'model - stcr.joblib'  -> XGBRegressor, target str_p90
+# Long-Term   : 'model - ltcr.joblib'  -> RandomForestRegressor, target ltr_p50
+# Keduanya adalah Pipeline(OneHotEncoder(handle_unknown='ignore') -> regressor)
+# dengan 6 fitur kategorikal yang sama (lihat MODEL_FEATURES).
+MODEL_STCR = os.path.join(base_path, 'model - stcr.joblib')
+MODEL_LTCR = os.path.join(base_path, 'model - ltcr.joblib')
 MODEL_FLUID = os.path.join(base_path, 'corrosion-rate.pkl')
 
-model_str = None
-model_ltr = None
+# Urutan kolom wajib sama persis dengan saat training (pipeline.feature_names_in_)
+MODEL_FEATURES = ['equipment_type', 'category', 'part', 'asset_owner', 'ou', 'facility']
+
+model_stcr = None
+model_ltcr = None
 model_fluid = None
 
-if JOBLIB_AVAILABLE:
-    # Try to load Short-Term model with error handling
-    try:
-        if os.path.exists(MODEL_STR):
-            model_str = joblib.load(MODEL_STR)
-            print(f"✅ Model Short-Term '{MODEL_STR}' berhasil dimuat.")
-    except NotImplementedError as e:
-        print(f"⚠️ Info: Model Short-Term tidak kompatibel (pandas StringDtype issue).")
-        print(f"   Solusi: Re-train model dari notebook 'model - short-term.ipynb'")
-        print(f"   Atau jalankan: python retrain_shortterm.py")
-        model_str = None
-    except Exception as e:
-        print(f"⚠️ Info: Model Short-Term tidak kompatibel dengan versi library saat ini.")
-        print(f"   Detail: {type(e).__name__}")
-        model_str = None
 
-    # Try to load Long-Term model with error handling
+def _load_model(path, label, hint):
+    """Load a joblib pipeline, returning None (with a readable message) on failure."""
+    if not os.path.exists(path):
+        print(f"⚠️ Info: File model {label} tidak ditemukan: {path}")
+        return None
     try:
-        if os.path.exists(MODEL_LTR):
-            model_ltr = joblib.load(MODEL_LTR)
-            print(f"✅ Model Long-Term '{MODEL_LTR}' berhasil dimuat.")
-    except NotImplementedError as e:
-        print(f"⚠️ Info: Model Long-Term tidak kompatibel (pandas StringDtype issue).")
-        print(f"   Solusi: Re-train model dari notebook 'model - long-term.ipynb'")
-        model_ltr = None
+        model = joblib.load(path)
+        print(f"✅ Model {label} '{os.path.basename(path)}' berhasil dimuat.")
+        return model
+    except ModuleNotFoundError as e:
+        print(f"⚠️ Info: Model {label} butuh library yang belum terinstall: {e.name}")
+        print(f"   Solusi: pip install {e.name}")
+        return None
     except Exception as e:
-        print(f"⚠️ Info: Model Long-Term tidak kompatibel dengan versi library saat ini.")
-        print(f"   Detail: {type(e).__name__}")
-        model_ltr = None
+        print(f"⚠️ Info: Model {label} tidak kompatibel dengan versi library saat ini.")
+        print(f"   Detail: {type(e).__name__} - {e}")
+        print(f"   Solusi: re-train dari notebook '{hint}'")
+        return None
+
+
+def get_model_categories(pipeline):
+    """
+    Ambil daftar kategori yang dikenal model, per fitur, langsung dari
+    OneHotEncoder hasil training. Dipakai untuk mengisi dropdown supaya
+    pilihan di UI selalu sinkron dengan model (bukan hardcode).
+    """
+    if pipeline is None:
+        return {}
+    try:
+        preprocessor = pipeline.named_steps['preprocessor']
+        for _name, transformer, columns in preprocessor.transformers_:
+            if hasattr(transformer, 'categories_'):
+                return {
+                    col: [str(v) for v in values]
+                    for col, values in zip(columns, transformer.categories_)
+                }
+    except Exception as e:
+        print(f"⚠️ Info: Gagal membaca kategori model: {type(e).__name__} - {e}")
+    return {}
+
+
+if JOBLIB_AVAILABLE:
+    model_stcr = _load_model(MODEL_STCR, 'Short-Term (STCR p90)',
+                             'model - stcr - p90_xgboost.ipynb')
+    model_ltcr = _load_model(MODEL_LTCR, 'Long-Term (LTCR p50)',
+                             'model - ltcr - p50_random forest.ipynb')
 else:
     print("ℹ️ Info: Aplikasi akan berjalan tanpa fitur ML prediction.")
     print("ℹ️ Info: Corrosion Calculator dan Fluid Sampling tetap berfungsi.")
+
+# Kategori per model + gabungan untuk dropdown.
+STCR_CATEGORIES = get_model_categories(model_stcr)
+LTCR_CATEGORIES = get_model_categories(model_ltcr)
+
+MODEL_OPTIONS = {
+    feature: sorted(
+        set(STCR_CATEGORIES.get(feature, [])) | set(LTCR_CATEGORIES.get(feature, []))
+    )
+    for feature in MODEL_FEATURES
+}
 
 # Load Fluid Sampling model (pickle format)
 if PICKLE_AVAILABLE:
@@ -101,6 +137,77 @@ if PICKLE_AVAILABLE:
 else:
     print("ℹ️ Info: Fluid Sampling model tidak dapat dimuat (pickle not available).")
 
+# --- Model Fluid Sampling khusus per Operating Unit ---------------------------
+# 'model - fluid sampling - <OU>.joblib' adalah Pipeline(OneHotEncoder(Equipment)
+# + passthrough parameter kimia -> RandomForestRegressor), target kolom 'CR'.
+# Model ini hanya tersedia untuk OU tertentu; OU lain memakai model umum
+# 'corrosion-rate.pkl' (SVR 10 fitur) yang tetap dipertahankan.
+FLUID_OU_MODELS = {}
+
+# Jumlah sampel latih per OU — dipakai untuk menyampaikan keterbatasan model ke pengguna.
+FLUID_TRAIN_SAMPLES = {'SLN': 64, 'SLS': 37}
+
+if JOBLIB_AVAILABLE:
+    for _ou in ('SLN', 'SLS'):
+        _path = os.path.join(base_path, f'model - fluid sampling - {_ou}.joblib')
+        _model = _load_model(_path, f'Fluid Sampling {_ou}',
+                             f'model - fluid sampling - {_ou}.ipynb')
+        if _model is not None:
+            FLUID_OU_MODELS[_ou] = _model
+
+# Fitur model umum lama, memakai nama kolom asli saat training.
+FLUID_LEGACY_FEATURES = [
+    'Cation Anion Balance', 'HCO3', 'Density', 'Resistivity', 'pH',
+    'Salinity', 'SO4', 'Ca', 'Mg', 'Acetic Acid'
+]
+
+# Alias key lama (snake_case) yang dipakai versi form sebelumnya.
+FLUID_LEGACY_ALIASES = {
+    'cation_anion_balance': 'Cation Anion Balance', 'hco3': 'HCO3',
+    'density': 'Density', 'resistivity': 'Resistivity', 'ph': 'pH',
+    'salinity': 'Salinity', 'so4': 'SO4', 'ca': 'Ca', 'mg': 'Mg',
+    'acetic_acid': 'Acetic Acid',
+}
+
+
+def get_fluid_model_features(pipeline):
+    """Daftar fitur numerik + opsi Equipment dari pipeline fluid sampling per-OU."""
+    features = [str(f) for f in pipeline.feature_names_in_]
+    equipment_options = []
+    try:
+        preprocessor = pipeline.named_steps['preprocessor']
+        for _name, transformer, columns in preprocessor.transformers_:
+            if hasattr(transformer, 'categories_') and 'Equipment' in list(columns):
+                idx = list(columns).index('Equipment')
+                equipment_options = [str(v) for v in transformer.categories_[idx]]
+    except Exception as e:
+        print(f"⚠️ Info: Gagal membaca opsi Equipment: {type(e).__name__} - {e}")
+    numeric = [f for f in features if f != 'Equipment']
+    return numeric, equipment_options
+
+
+def predict_with_interval(pipeline, input_df):
+    """
+    Prediksi + rentang ketidakpastian dari sebaran pohon Random Forest.
+
+    Tiap pohon memberi estimasi sendiri; persentil 10-90 dari sebaran itu
+    dipakai sebagai rentang wajar. Model non-ensemble mengembalikan None.
+    """
+    prediction = float(pipeline.predict(input_df)[0])
+    try:
+        regressor = pipeline.steps[-1][1]
+        estimators = getattr(regressor, 'estimators_', None)
+        if not estimators:
+            return prediction, None
+        transformed = pipeline[:-1].transform(input_df)
+        per_tree = np.array([float(t.predict(transformed)[0]) for t in estimators])
+        low, high = np.percentile(per_tree, [10, 90])
+        return prediction, {'low': round(float(low), 4), 'high': round(float(high), 4)}
+    except Exception as e:
+        print(f"⚠️ Info: Gagal menghitung rentang: {type(e).__name__} - {e}")
+        return prediction, None
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -113,8 +220,8 @@ def health_check():
         'version': '2.0',
         'models': {
             'fluid_sampling': model_fluid is not None,
-            'short_term': model_str is not None,
-            'long_term': model_ltr is not None
+            'short_term': model_stcr is not None,
+            'long_term': model_ltcr is not None
         }
     })
 
@@ -126,132 +233,108 @@ def corrosion_calculator():
 def fluid_sampling():
     return render_template('fluid_sampling.html')
 
-@app.route('/short-term')
-def short_term():
-    return render_template('short_term.html')
-
-@app.route('/long-term')
-def long_term():
-    return render_template('long_term.html')
-
 # API Endpoints
-@app.route('/api/calculate-corrosion', methods=['POST'])
-def calculate_corrosion():
-    """Calculate corrosion rate based on equipment parameters"""
-    try:
-        data = request.get_json()
-        
-        part_value = data.get('part', 'bottom')
-        t_act = float(data.get('actual_thickness', 10.0))
-        t_min = float(data.get('min_thickness', 2.5))
-        start_year = int(data.get('year', 2024))
-        
-        cr = 0.1  # Default corrosion rate
-        
-        if part_value == 'bottom':
-            res = float(data.get('soil_resistivity', 5000))
-            srb = float(data.get('srb_count', 1000))
-            cr = (srb / 1000) + (1000 / res)
-        elif part_value == 'shell':
-            temp = float(data.get('temperature', 40))
-            water = float(data.get('water_content', 0.5))
-            cr = (temp * 0.005) + (water * 0.1)
-        elif part_value == 'roof':
-            h2s = float(data.get('h2s', 10))
-            hum = float(data.get('humidity', 80))
-            cr = (h2s * 0.01) + (hum / 400)
-        
-        rl = (t_act - t_min) / cr if cr > 0 else 0
-        retirement_year = int(start_year + max(0, rl))
-        
-        return jsonify({
-            'success': True,
-            'corrosion_rate': round(cr, 3),
-            'remaining_life': round(max(0, rl), 1),
-            'retirement_year': retirement_year
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+@app.route('/api/model-options', methods=['GET'])
+def model_options():
+    """
+    Daftar pilihan valid untuk 6 parameter input, diambil langsung dari
+    model yang sudah di-training. Dipakai frontend untuk mengisi dropdown.
+    """
+    return jsonify({
+        'success': True,
+        'features': MODEL_FEATURES,
+        'options': MODEL_OPTIONS,
+        'models_loaded': {
+            'short_term': model_stcr is not None,
+            'long_term': model_ltcr is not None
+        }
+    })
+
+
+def _extract_features(data):
+    """
+    Ambil 6 fitur dari payload sebagai string.
+    'equipment' diterima sebagai alias lama untuk 'equipment_type'.
+    """
+    values = {}
+    for feature in MODEL_FEATURES:
+        raw = data.get(feature)
+        if raw is None and feature == 'equipment_type':
+            raw = data.get('equipment')
+        values[feature] = '' if raw is None else str(raw).strip()
+    return values
+
+
+def _run_prediction(model, known_categories, data):
+    """
+    Jalankan prediksi memakai 6 fitur kategorikal.
+
+    OneHotEncoder di-training dengan handle_unknown='ignore', jadi nilai di luar
+    vocabulary tidak error tapi di-encode sebagai nol (kontribusinya hilang).
+    Nilai seperti itu dilaporkan lewat 'unknown_values' supaya hasil yang
+    akurasinya menurun tidak lolos tanpa peringatan.
+    """
+    values = _extract_features(data)
+
+    missing = [f for f in MODEL_FEATURES if not values[f]]
+    if missing:
+        raise ValueError('Parameter wajib belum diisi: ' + ', '.join(missing))
+
+    unknown = {
+        feature: values[feature]
+        for feature in MODEL_FEATURES
+        if known_categories.get(feature) and values[feature] not in known_categories[feature]
+    }
+
+    # Kolom harus sama persis (nama + urutan) dengan saat training
+    input_data = pd.DataFrame([[values[f] for f in MODEL_FEATURES]], columns=MODEL_FEATURES)
+    prediction = model.predict(input_data)
+
+    return {
+        'success': True,
+        'predicted_corrosion_rate': round(float(prediction[0]), 4),
+        'unit': 'mm/year',
+        'input': values,
+        'unknown_values': unknown
+    }
+
 
 @app.route('/api/predict-short-term', methods=['POST'])
 def predict_short_term():
-    """Predict short-term corrosion rate using ML model"""
-    if model_str is None:
+    """Predict short-term corrosion rate (STCR p90, XGBoost)"""
+    if model_stcr is None:
         return jsonify({
-            'success': False, 
+            'success': False,
             'error': 'Model Short-Term belum dimuat atau tidak kompatibel'
         }), 500
-    
+
     try:
-        data = request.get_json()
-        
-        # Extract features sesuai model notebook
-        # Model menggunakan: equipment, part, ou
-        equipment = data.get('equipment', 'Storage Tank')
-        part = data.get('part', 'Shell')
-        ou = data.get('ou', 'HO')  # Operating Unit
-        
-        # Create DataFrame with exact column names as in training
-        input_data = pd.DataFrame({
-            'equipment': [equipment],
-            'part': [part],
-            'ou': [ou]
-        })
-        
-        # Predict using the pipeline (TargetEncoder + RandomForest)
-        prediction = model_str.predict(input_data)
-        
-        return jsonify({
-            'success': True,
-            'predicted_corrosion_rate': round(float(prediction[0]), 3),
-            'input': {
-                'equipment': equipment,
-                'part': part,
-                'ou': ou
-            }
-        })
-    except Exception as e:
+        result = _run_prediction(model_stcr, STCR_CATEGORIES, request.get_json() or {})
+        result['model'] = 'STCR p90 (XGBoost)'
+        return jsonify(result)
+    except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 400
+
 
 @app.route('/api/predict-long-term', methods=['POST'])
 def predict_long_term():
-    """Predict long-term corrosion rate using ML model"""
-    if model_ltr is None:
+    """Predict long-term corrosion rate (LTCR p50, Random Forest)"""
+    if model_ltcr is None:
         return jsonify({
-            'success': False, 
+            'success': False,
             'error': 'Model Long-Term belum dimuat atau tidak kompatibel'
         }), 500
-    
+
     try:
-        data = request.get_json()
-        
-        # Extract features sesuai model notebook
-        # Model menggunakan: equipment, part, ou
-        equipment = data.get('equipment', 'Storage Tank')
-        part = data.get('part', 'Shell')
-        ou = data.get('ou', 'HO')  # Operating Unit
-        
-        # Create DataFrame with exact column names as in training
-        input_data = pd.DataFrame({
-            'equipment': [equipment],
-            'part': [part],
-            'ou': [ou]
-        })
-        
-        # Predict using the pipeline (TargetEncoder + RandomForest)
-        prediction = model_ltr.predict(input_data)
-        
-        return jsonify({
-            'success': True,
-            'predicted_corrosion_rate': round(float(prediction[0]), 3),
-            'input': {
-                'equipment': equipment,
-                'part': part,
-                'ou': ou
-            }
-        })
-    except Exception as e:
+        result = _run_prediction(model_ltcr, LTCR_CATEGORIES, request.get_json() or {})
+        result['model'] = 'LTCR p50 (Random Forest)'
+        return jsonify(result)
+    except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 400
 
 @app.route('/api/save-fluid-sample', methods=['POST'])
 def save_fluid_sample():
@@ -274,75 +357,153 @@ def save_fluid_sample():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/fluid-model-info', methods=['GET'])
+def fluid_model_info():
+    """
+    Parameter yang dibutuhkan tiap model fluid sampling, dibaca langsung dari
+    model terlatih. Frontend memakai ini untuk membangun form sesuai OU terpilih,
+    sehingga field otomatis menyesuaikan bila model dilatih ulang.
+    """
+    models = {}
+
+    for ou, pipeline in FLUID_OU_MODELS.items():
+        numeric, equipment_options = get_fluid_model_features(pipeline)
+        n = FLUID_TRAIN_SAMPLES.get(ou)
+        models[ou] = {
+            'label': f'Model khusus {ou}',
+            'numeric_features': numeric,
+            'equipment_options': equipment_options,
+            'needs_equipment': bool(equipment_options),
+            'supports_range': True,
+            'train_samples': n,
+            'quality_note': (
+                f'Model {ou} dilatih dari {n} sampel dan cenderung meremehkan '
+                f'kasus korosi tinggi. Gunakan sebagai indikasi awal, bukan '
+                f'dasar tunggal keputusan inspeksi.'
+            ) if n else None,
+        }
+
+    if model_fluid is not None:
+        models['_default'] = {
+            'label': 'Model umum (semua OU lain)',
+            'numeric_features': list(FLUID_LEGACY_FEATURES),
+            'equipment_options': [],
+            'needs_equipment': False,
+            'supports_range': False,
+            'train_samples': None,
+            'quality_note': 'Model umum SVR; tidak menyediakan rentang ketidakpastian.',
+        }
+
+    return jsonify({
+        'success': True,
+        'models': models,
+        'ou_with_specific_model': sorted(FLUID_OU_MODELS.keys()),
+        'has_default_model': model_fluid is not None,
+    })
+
+
 @app.route('/api/predict-fluid-sampling', methods=['POST'])
 def predict_fluid_sampling():
-    """Predict corrosion rate from fluid sampling parameters using corrosion-rate.pkl model"""
-    if model_fluid is None:
-        return jsonify({
-            'success': False, 
-            'error': 'Model Fluid Sampling belum dimuat atau tidak kompatibel'
-        }), 500
-    
+    """
+    Prediksi laju korosi dari parameter fluida.
+
+    Model dipilih berdasarkan OU: SLN/SLS memakai model khusus per-OU,
+    OU lainnya memakai model umum 'corrosion-rate.pkl' yang tetap dipertahankan.
+    """
     try:
-        data = request.get_json()
-        
-        # Extract equipment info (for display/logging only, not used in model)
-        equipment = data.get('equipment', 'Unknown')
-        part = data.get('part', 'Unknown')
-        ou = data.get('ou', 'Unknown')
-        
-        # Extract 10 fluid parameters (sesuai model corrosion-rate.pkl)
-        cation_anion_balance = float(data.get('cation_anion_balance', 0))
-        hco3 = float(data.get('hco3', 120))
-        density = float(data.get('density', 1.02))
-        resistivity = float(data.get('resistivity', 3000))
-        ph = float(data.get('ph', 7.1))
-        salinity = float(data.get('salinity', 15000))
-        so4 = float(data.get('so4', 50))
-        ca = float(data.get('ca', 120))
-        mg = float(data.get('mg', 80))
-        acetic_acid = float(data.get('acetic_acid', 5))
-        
-        # Create feature array in correct order
-        features = np.array([[
-            cation_anion_balance, 
-            hco3, 
-            density, 
-            resistivity, 
-            ph, 
-            salinity, 
-            so4, 
-            ca, 
-            mg, 
-            acetic_acid
-        ]])
-        
-        # Predict using the model
-        prediction = model_fluid.predict(features)
-        
+        data = request.get_json() or {}
+        ou = str(data.get('ou', '')).strip()
+        equipment = str(data.get('equipment', '')).strip()
+        part = str(data.get('part', '')).strip()
+
+        use_specific = ou in FLUID_OU_MODELS
+
+        if use_specific:
+            pipeline = FLUID_OU_MODELS[ou]
+            numeric_features, equipment_options = get_fluid_model_features(pipeline)
+            required = numeric_features + ['Equipment']
+            model_label = f'{ou} (Random Forest, {FLUID_TRAIN_SAMPLES.get(ou, "?")} sampel)'
+        else:
+            if model_fluid is None:
+                return jsonify({
+                    'success': False,
+                    'error': 'Model Fluid Sampling belum dimuat atau tidak kompatibel'
+                }), 500
+            pipeline = None
+            numeric_features = list(FLUID_LEGACY_FEATURES)
+            equipment_options = []
+            required = numeric_features
+            model_label = 'Umum (SVR 10 fitur)'
+
+        # Kumpulkan nilai: terima nama kolom asli maupun alias snake_case lama
+        values = {}
+        missing = []
+        for feature in numeric_features:
+            raw = data.get(feature)
+            if raw is None:
+                for alias, canonical in FLUID_LEGACY_ALIASES.items():
+                    if canonical == feature and data.get(alias) is not None:
+                        raw = data.get(alias)
+                        break
+            if raw is None or str(raw).strip() == '':
+                missing.append(feature)
+                continue
+            try:
+                values[feature] = float(raw)
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'error': f'Nilai "{feature}" harus berupa angka, diterima: {raw!r}'
+                }), 400
+
+        if missing:
+            return jsonify({
+                'success': False,
+                'error': 'Parameter wajib belum diisi: ' + ', '.join(missing),
+                'missing': missing
+            }), 400
+
+        unknown_equipment = None
+        if use_specific:
+            if not equipment:
+                return jsonify({
+                    'success': False,
+                    'error': 'Parameter wajib belum diisi: Equipment',
+                    'missing': ['Equipment']
+                }), 400
+            if equipment_options and equipment not in equipment_options:
+                unknown_equipment = equipment
+
+            row = dict(values)
+            row['Equipment'] = equipment
+            input_df = pd.DataFrame([[row[f] for f in required]], columns=required)
+            prediction, interval = predict_with_interval(pipeline, input_df)
+        else:
+            # Model lama menerima array polos dengan urutan kolom saat training
+            features = np.array([[values[f] for f in numeric_features]])
+            prediction = float(model_fluid.predict(features)[0])
+            interval = None
+
+        n = FLUID_TRAIN_SAMPLES.get(ou) if use_specific else None
         return jsonify({
             'success': True,
-            'predicted_corrosion_rate': round(float(prediction[0]), 3),
-            'equipment_info': {
-                'equipment': equipment,
-                'part': part,
-                'ou': ou
-            },
-            'input': {
-                'cation_anion_balance': cation_anion_balance,
-                'hco3': hco3,
-                'density': density,
-                'resistivity': resistivity,
-                'ph': ph,
-                'salinity': salinity,
-                'so4': so4,
-                'ca': ca,
-                'mg': mg,
-                'acetic_acid': acetic_acid
-            }
+            'predicted_corrosion_rate': round(prediction, 4),
+            'range': interval,
+            'unit': 'mm/year',
+            'model': model_label,
+            'model_type': 'ou_specific' if use_specific else 'default',
+            'train_samples': n,
+            'quality_note': (
+                f'Dilatih dari {n} sampel; model cenderung meremehkan kasus '
+                f'korosi tinggi. Gunakan sebagai indikasi awal, bukan dasar '
+                f'tunggal keputusan inspeksi.'
+            ) if n else None,
+            'unknown_equipment': unknown_equipment,
+            'equipment_info': {'equipment': equipment, 'part': part, 'ou': ou},
+            'input': values,
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({'success': False, 'error': f'{type(e).__name__}: {e}'}), 400
 
 # Error Handlers
 @app.errorhandler(404)
