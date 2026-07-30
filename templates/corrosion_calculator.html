@@ -13,8 +13,8 @@
             <div class="logo">Corrosion Rate App</div>
             <ul class="nav-menu">
                 <li><a href="/">Home</a></li>
-                <li><a href="/corrosion-calculator" class="active">Corrosion Calculator</a></li>
-                <li><a href="/fluid-sampling">Fluid Sampling</a></li>
+                <li><a href="/corrosion-calculator" class="active">Corrosion Prediction by Equipment Type</a></li>
+                <li><a href="/fluid-sampling">Corrosion Prediction by Fluid Sampling</a></li>
             </ul>
         </div>
     </nav>
@@ -40,44 +40,53 @@
                     <h3>Parameter Model (6 Input)</h3>
                     <p class="page-description" id="cr-master-info"></p>
                     <div class="field-group">
-                        <label>Jenis Peralatan (Equipment Type) *</label>
+                        <label for="equipment_type" title="Jenis Peralatan (Equipment Type)">Jenis Peralatan<span class="req">*</span></label>
                         <select id="equipment_type" required></select>
+                        <small>Equipment type</small>
                     </div>
                     <div class="field-group">
-                        <label>Kategori (Category) *</label>
+                        <label for="category" title="Kategori (Category)">Kategori<span class="req">*</span></label>
                         <select id="category" required></select>
+                        <small>Category</small>
                     </div>
                     <div class="field-group">
-                        <label>Bagian (Part) *</label>
+                        <label for="part" title="Bagian (Part)">Bagian<span class="req">*</span></label>
                         <select id="part" required></select>
+                        <small>Part</small>
                     </div>
                     <div class="field-group">
-                        <label>Asset Owner *</label>
+                        <label for="asset_owner" title="Asset Owner">Asset Owner<span class="req">*</span></label>
                         <select id="asset_owner" required></select>
+                        <small>Pemilik aset</small>
                     </div>
                     <div class="field-group">
-                        <label>Operating Unit (OU) *</label>
+                        <label for="ou" title="Operating Unit (OU)">Operating Unit<span class="req">*</span></label>
                         <select id="ou" required></select>
+                        <small>OU</small>
                     </div>
                     <div class="field-group">
-                        <label>Facility *</label>
+                        <label for="facility" title="Facility">Facility<span class="req">*</span></label>
                         <select id="facility" required></select>
+                        <small>Fasilitas</small>
                     </div>
                 </div>
 
                 <div class="form-section">
                     <h3>Parameter Proyeksi Ketebalan</h3>
                     <div class="field-group">
-                        <label>Tahun Inspeksi *</label>
+                        <label for="year" title="Inspection Year">Inspection Year<span class="req">*</span></label>
                         <input type="number" id="year" value="2026" step="1">
+                        <small>Titik awal proyeksi</small>
                     </div>
                     <div class="field-group">
-                        <label>Ketebalan Saat Ini (mm) *</label>
+                        <label for="current_thickness" title="Actual Thickness (mm)">Actual Thickness <span class="unit">(mm)</span><span class="req">*</span></label>
                         <input type="number" id="current_thickness" value="10.0" step="0.01">
+                        <small>Hasil pengukuran terakhir</small>
                     </div>
                     <div class="field-group">
-                        <label>Ketebalan Minimum / T-Min (mm) *</label>
+                        <label for="min_thickness" title="Ketebalan Minimum / Minimum Thickness (mm)">Minimum Thickness <span class="unit">(mm)</span><span class="req">*</span></label>
                         <input type="number" id="min_thickness" value="2.5" step="0.01">
+                        <small>Ketebalan minimum yang diizinkan</small>
                     </div>
                 </div>
 
@@ -191,7 +200,10 @@
                 // Tandai nilai yang di luar cakupan training salah satu model,
                 // supaya terlihat sebelum menghitung — bukan setelah hasil keluar.
                 if (asing && asing.has(v)) {
-                    opt.textContent = v + '  ⚠ ' + modelTakKenal(field, v).join(' & ') + ' kurang akurat';
+                    const model = modelTakKenal(field, v);
+                    opt.textContent = v + '  ⚠ ' + model.join(' & ');
+                    opt.title = 'Nilai ini tidak ada di data training model ' +
+                        model.join(' & ') + ', jadi hasilnya kurang akurat.';
                 } else {
                     opt.textContent = v;
                 }
@@ -227,8 +239,12 @@
                         return !v || row[i] === masterIndex[f][v];
                     })
                 ).length;
-                info.textContent =
-                    `${cocok} dari ${master.rows.length} kombinasi peralatan cocok dengan pilihan saat ini.`;
+                // Legenda tanda ⚠ pada opsi, supaya teks tiap opsi bisa tetap pendek
+                const legenda = Object.keys(asingSet).length
+                    ? ' <span class="legend-warn">⚠ = di luar data training model tersebut, akurasi menurun.</span>'
+                    : '';
+                info.innerHTML =
+                    `${cocok} dari ${master.rows.length} kombinasi peralatan cocok dengan pilihan saat ini.` + legenda;
             }
         }
 

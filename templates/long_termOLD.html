@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Long Term Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='chart.min.js') }}"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">Corrosion Rate App</div>
+            <ul class="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/corrosion-calculator">Corrosion Calculator</a></li>
+                <li><a href="/fluid-sampling">Fluid Sampling</a></li>
+                <li><a href="/short-term">Short Term</a></li>
+                <li><a href="/long-term" class="active">Long Term</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <h2>Long Term Corrosion Rate Prediction</h2>
+        <p class="page-description">Prediksi laju korosi jangka panjang (1-10 tahun) untuk perencanaan maintenance</p>
+
+        <div class="info-banner">
+            <strong>ℹ️ Info:</strong> Model ini memprediksi laju korosi jangka panjang berdasarkan tipe equipment, part, dan operating unit.
+            Gunakan untuk perencanaan maintenance dan estimasi umur equipment.
+        </div>
+
+        <div class="form-section">
+            <h3>Equipment Information</h3>
+            <div class="field-group">
+                <label>Equipment Type *</label>
+                <select id="equipment" required>
+                    <option value="Storage Tank">Storage Tank</option>
+                    <option value="Pressure Vessel">Pressure Vessel</option>
+                    <option value="HEX">Heat Exchanger (HEX)</option>
+                    <option value="FFC">Fin Fan Cooler (FFC)</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Part *</label>
+                <select id="part" required>
+                    <option value="Shell">Shell</option>
+                    <option value="Head">Head</option>
+                    <option value="Roof">Roof</option>
+                    <option value="Plate">Plate</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Operating Unit (OU) *</label>
+                <select id="ou" required>
+                    <option value="HO">HO - Hydro Processing</option>
+                    <option value="SLN">SLN - Sulfolane</option>
+                    <option value="SLS">SLS - Sour LPG Stripper</option>
+                    <option value="HCT">HCT</option>
+                    <option value="FM">FM</option>
+                    <option value="PGT">PGT</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Current Thickness (mm)</label>
+                <input type="number" id="current_thickness" value="10.0" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Minimum Required Thickness (mm)</label>
+                <input type="number" id="min_thickness" value="2.5" step="0.1">
+            </div>
+            <div class="field-group">
+                <label>Installation Year</label>
+                <input type="number" id="install_year" value="2010" step="1">
+            </div>
+        </div>
+
+        <button class="btn-predict" onclick="predictLongTerm()">Predict Long Term Behavior</button>
+
+        <div id="loading" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+            <p>Memproses prediksi...</p>
+        </div>
+
+        <div id="resultSection" class="result-section" style="display: none;">
+            <h3>Hasil Prediksi Jangka Panjang</h3>
+            
+            <div class="prediction-result">
+                <div class="result-card">
+                    <div class="result-label">Predicted Corrosion Rate</div>
+                    <div class="result-value" id="predictedCR">0.000</div>
+                    <div class="result-unit">mm/year</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Estimated Remaining Life</div>
+                    <div class="result-value" id="remainingLife">0.0</div>
+                    <div class="result-unit">years</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Retirement Year</div>
+                    <div class="result-value" id="retirementYear">2030</div>
+                    <div class="result-unit">estimated</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h4>Thickness Degradation Projection</h4>
+                <canvas id="degradationChart"></canvas>
+            </div>
+
+            <div class="maintenance-schedule">
+                <h4>Recommended Maintenance Schedule</h4>
+                <div class="timeline" id="maintenanceTimeline"></div>
+            </div>
+
+            <div class="risk-assessment">
+                <h4>Risk Assessment</h4>
+                <canvas id="riskChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let degradationChart, riskChart;
+
+        async function predictLongTerm() {
+            const data = {
+                equipment: document.getElementById('equipment').value,
+                part: document.getElementById('part').value,
+                ou: document.getElementById('ou').value
+            };
+
+            const currentThickness = parseFloat(document.getElementById('current_thickness').value);
+            const minThickness = parseFloat(document.getElementById('min_thickness').value);
+            const installYear = parseInt(document.getElementById('install_year').value);
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/predict-long-term', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result.predicted_corrosion_rate, currentThickness, minThickness, installYear);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayResults(cr, currentThickness, minThickness, installYear) {
+            document.getElementById('predictedCR').textContent = cr.toFixed(3);
+            
+            const remainingLife = (currentThickness - minThickness) / cr;
+            const currentYear = new Date().getFullYear();
+            const retirementYear = currentYear + Math.floor(remainingLife);
+
+            document.getElementById('remainingLife').textContent = remainingLife.toFixed(1);
+            document.getElementById('retirementYear').textContent = retirementYear;
+
+            document.getElementById('resultSection').style.display = 'block';
+
+            // Generate charts and schedules
+            generateDegradationChart(currentYear, currentThickness, minThickness, cr);
+            generateMaintenanceSchedule(currentYear, remainingLife);
+            generateRiskChart(remainingLife);
+        }
+
+        function generateDegradationChart(startYear, currentThickness, minThickness, cr) {
+            const ctx = document.getElementById('degradationChart').getContext('2d');
+            const years = Array.from({length: 11}, (_, i) => i);
+            const labels = years.map(y => startYear + y);
+            const thicknessData = years.map(y => Math.max(0, currentThickness - (cr * y)));
+
+            if (degradationChart) degradationChart.destroy();
+
+            degradationChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Actual Thickness (mm)',
+                        data: thicknessData,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }, {
+                        label: 'Minimum Thickness',
+                        data: years.map(() => minThickness),
+                        borderColor: '#e74c3c',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }, {
+                        label: 'Warning Threshold',
+                        data: years.map(() => minThickness * 1.2),
+                        borderColor: '#f39c12',
+                        borderDash: [3, 3],
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '10-Year Thickness Projection'
+                        }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Year' } },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: 'Thickness (mm)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateMaintenanceSchedule(startYear, remainingLife) {
+            const timeline = document.getElementById('maintenanceTimeline');
+            const inspectionInterval = Math.max(1, Math.floor(remainingLife / 5));
+            
+            let scheduleHTML = '<div class="timeline-items">';
+            
+            for (let i = 0; i < 5; i++) {
+                const year = startYear + (inspectionInterval * i);
+                const type = i === 0 ? 'Baseline' : (i === 4 ? 'Major' : 'Regular');
+                scheduleHTML += `
+                    <div class="timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <strong>${year}</strong> - ${type} Inspection
+                        </div>
+                    </div>
+                `;
+            }
+            
+            scheduleHTML += '</div>';
+            timeline.innerHTML = scheduleHTML;
+        }
+
+        function generateRiskChart(remainingLife) {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            
+            let riskLevels;
+            if (remainingLife > 5) {
+                riskLevels = [80, 15, 5];
+            } else if (remainingLife > 2) {
+                riskLevels = [50, 35, 15];
+            } else {
+                riskLevels = [20, 30, 50];
+            }
+
+            if (riskChart) riskChart.destroy();
+
+            riskChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+                    datasets: [{
+                        data: riskLevels,
+                        backgroundColor: [
+                            'rgba(46, 204, 113, 0.8)',
+                            'rgba(241, 196, 15, 0.8)',
+                            'rgba(231, 76, 60, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Risk Distribution Over Equipment Life'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

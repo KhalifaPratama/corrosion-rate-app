@@ -104,5 +104,8 @@ run.bat
 library.txt
 index_revisi.html
 
+short_termOLD.html
+long_term.html
+fluid_samplingOLD.html
 # Keep only essential documentation for Git
 # Keep: README.md, DEPLOYMENT_GUIDE.md, PRODUCTION_READY.md, UPDATE_NOTES.md, CHANGELOG.md

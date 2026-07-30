@@ -13,8 +13,8 @@
             <div class="logo">Corrosion Rate App</div>
             <ul class="nav-menu">
                 <li><a href="/">Home</a></li>
-                <li><a href="/corrosion-calculator">Corrosion Calculator</a></li>
-                <li><a href="/fluid-sampling" class="active">Fluid Sampling</a></li>
+                <li><a href="/corrosion-calculator">Corrosion Prediction by Equipment Type</a></li>
+                <li><a href="/fluid-sampling" class="active">Corrosion Prediction by Fluid Sampling</a></li>
             </ul>
         </div>
     </nav>
@@ -35,7 +35,7 @@
             <h3>Equipment Information</h3>
             
             <div class="field-group">
-                <label>Equipment Type *</label>
+                <label for="equipment" title="Equipment Type">Equipment Type<span class="req">*</span></label>
                 <select id="equipment" required>
                     <option value="">-- Pilih Equipment --</option>
                     <option value="Storage Tank">Storage Tank</option>
@@ -43,11 +43,11 @@
                     <option value="HEX">Heat Exchanger (HEX)</option>
                     <option value="FFC">FFC</option>
                 </select>
-                <small>Select the equipment type being sampled</small>
+                <small>Jenis peralatan yang disampling</small>
             </div>
 
             <div class="field-group">
-                <label>Part *</label>
+                <label for="part" title="Part">Part<span class="req">*</span></label>
                 <select id="part" required>
                     <option value="">-- Pilih Part --</option>
                     <option value="Shell">Shell</option>
@@ -55,11 +55,11 @@
                     <option value="Roof">Roof</option>
                     <option value="Plate">Plate</option>
                 </select>
-                <small>Select the part of equipment</small>
+                <small>Bagian peralatan</small>
             </div>
 
             <div class="field-group">
-                <label>Operating Unit (OU) *</label>
+                <label for="ou" title="Operating Unit (OU)">Operating Unit<span class="req">*</span></label>
                 <select id="ou" required>
                     <option value="">-- Pilih OU --</option>
                     <option value="HO">HO</option>
@@ -69,7 +69,7 @@
                     <option value="FM">FM</option>
                     <option value="PGT">PGT</option>
                 </select>
-                <small>Select the operating unit</small>
+                <small>Menentukan model yang dipakai</small>
             </div>
         </div>
 
@@ -86,18 +86,21 @@
             <h3>Parameter Proyeksi Ketebalan</h3>
 
             <div class="field-group">
-                <label>Inspection Year</label>
+                <label for="inspection_year" title="Inspection Year">Inspection Year</label>
                 <input type="number" id="inspection_year" value="2026">
+                <small>Titik awal proyeksi</small>
             </div>
 
             <div class="field-group">
-                <label>Actual Thickness (mm)</label>
+                <label for="actual_thickness" title="Actual Thickness (mm)">Actual Thickness <span class="unit">(mm)</span></label>
                 <input type="number" id="actual_thickness" value="12" step="0.1">
+                <small>Hasil pengukuran terakhir</small>
             </div>
 
             <div class="field-group">
-                <label>Minimum Thickness (mm)</label>
+                <label for="min_thickness" title="Minimum Thickness / T-Min (mm)">Minimum Thickness <span class="unit">(mm)</span></label>
                 <input type="number" id="min_thickness" value="6" step="0.1">
+                <small>Ketebalan minimum yang diizinkan</small>
             </div>
         </div>
 
@@ -113,7 +116,7 @@
             </button>
         </div>
 
-        <div id="loading" class="loading" style="display: none;">
+        <div id="loading" class="loading-spinner" style="display: none;">
             <div class="spinner"></div>
             <p>Melakukan prediksi...</p>
         </div>
@@ -161,7 +164,7 @@
             </div>
         </div>
 
-        <div id="error" class="error-box" style="display: none;"></div>
+        <div id="error" class="error-banner" style="display: none;"></div>
 
         <div class="info-section">
             <h3>📚 Informasi Model</h3>
@@ -296,6 +299,10 @@
                     s.textContent = ' (' + satuan + ')';
                     label.appendChild(s);
                 }
+                // Label dipotong elipsis bila kepanjangan; simpan nama utuh di tooltip
+                label.title = NAMA_PANJANG[nama]
+                    ? nama + ' — ' + NAMA_PANJANG[nama] + (satuan ? ' (' + satuan + ')' : '')
+                    : nama + (satuan ? ' (' + satuan + ')' : '');
 
                 const input = document.createElement('input');
                 input.type = 'number';
@@ -600,38 +607,6 @@
             border-radius: 8px;
             margin-bottom: 30px;
             font-size: 14px;
-        }
-
-        .field-group small {
-            display: block;
-            margin-top: 5px;
-            color: #666;
-            font-size: 12px;
-            font-style: italic;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 15px;
-            margin-top: 30px;
-            flex-wrap: wrap;
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .btn-secondary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
         }
 
         .result-content {
