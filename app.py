@@ -5,6 +5,17 @@ import json
 import os
 import sys
 
+# Konsol Windows default memakai code page 437/1252 yang tidak bisa menampilkan
+# emoji pada pesan startup di bawah. Tanpa ini print() melempar
+# UnicodeEncodeError dan aplikasi mati sebelum server jalan — di jendela .bat
+# errornya cuma berkelip lalu hilang. errors='replace' cukup: karakter yang
+# tidak didukung diganti '?', teksnya tetap terbaca.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors='replace')
+    except (AttributeError, ValueError):
+        pass
+
 # PyInstaller compatibility: Get the correct base path
 if getattr(sys, 'frozen', False):
     # Running as compiled executable
