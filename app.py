@@ -135,6 +135,15 @@ MODEL_OPTIONS = {
     for feature in MODEL_FEATURES
 }
 
+# Vocabulary model memuat seluruh bagian untuk semua jenis peralatan, padahal
+# di lapangan beberapa jenis peralatan hanya punya satu bagian yang diinspeksi:
+# FFC hanya plate (tube bundle), HEX hanya shell. Jenis peralatan yang tidak
+# terdaftar di sini tetap menawarkan seluruh pilihan bagian.
+PART_BY_EQUIPMENT = {
+    'FFC': ['Plate'],
+    'HEX': ['Shell'],
+}
+
 # --- Data master peralatan ---------------------------------------------------
 # 'equipment_master.json' berisi kombinasi peralatan yang benar-benar ada di
 # lapangan, dipakai agar dropdown saling menyaring: memilih OU menyisakan
@@ -151,6 +160,45 @@ MODEL_OPTIONS = {
 MASTER_PATH = os.path.join(base_path, 'equipment_master.json')
 
 MASTER_FIELDS = ['equipment_type', 'category', 'facility', 'asset_owner', 'ou']
+
+# Kategori yang ikut terbawa ke data master tapi tidak berlaku untuk jenis
+# peralatan tersebut, mis. HEX tidak punya gas boot. Disaring saat memuat supaya
+# dropdown kategori hanya menawarkan kombinasi yang benar-benar mungkin.
+MASTER_EXCLUDED_CATEGORIES = {
+    'HEX': ['Boot / Gas Boot / Degassing'],
+}
+
+
+def filter_master_categories(data):
+    """
+    Buang baris dengan kombinasi jenis peralatan + kategori yang tidak berlaku.
+
+    Kategorinya sendiri tidak dihapus dari daftar nilai — 'Boot / Gas Boot /
+    Degassing' masih dipakai Pressure Vessel — hanya barisnya yang dibuang,
+    dan dropdown di frontend dibangun dari baris, bukan dari daftar nilai.
+    """
+    i_type = data['fields'].index('equipment_type')
+    i_cat = data['fields'].index('category')
+    jenis = data['values']['equipment_type']
+    kategori = data['values']['category']
+
+    terlarang = {
+        (jenis.index(t), kategori.index(c))
+        for t, daftar in MASTER_EXCLUDED_CATEGORIES.items()
+        if t in jenis
+        for c in daftar
+        if c in kategori
+    }
+    if not terlarang:
+        return data
+
+    sebelum = len(data['rows'])
+    data['rows'] = [r for r in data['rows'] if (r[i_type], r[i_cat]) not in terlarang]
+    dibuang = sebelum - len(data['rows'])
+    if dibuang:
+        print(f"ℹ️ Info: {dibuang} kombinasi peralatan disaring "
+              f"(kategori tidak berlaku untuk jenis peralatannya).")
+    return data
 
 
 def load_equipment_master(path):
@@ -171,6 +219,8 @@ def load_equipment_master(path):
         if data.get('fields') != MASTER_FIELDS or not data.get('rows'):
             print("⚠️ Info: struktur data master tidak sesuai; diabaikan.")
             return None
+
+        data = filter_master_categories(data)
 
         print(f"✅ Data master '{os.path.basename(path)}' dimuat: "
               f"{len(data['rows'])} kombinasi peralatan.")
@@ -331,6 +381,9 @@ def model_options():
         'success': True,
         'features': MODEL_FEATURES,
         'options': MODEL_OPTIONS,
+        # Bagian yang berlaku per jenis peralatan; dipakai frontend menyaring
+        # dropdown 'Bagian' setelah jenis peralatan dipilih.
+        'part_by_equipment': PART_BY_EQUIPMENT,
         # Tabel kombinasi nyata; dipakai frontend untuk saling menyaring dropdown.
         'master': EQUIPMENT_MASTER,
         # Nilai yang di luar cakupan training tiap model, untuk ditandai di UI.

@@ -13,7 +13,7 @@
             <div class="logo">Corrosion Rate App</div>
             <ul class="nav-menu">
                 <li><a href="/">Home</a></li>
-                <li><a href="/corrosion-calculator">Corrosion Prediction by Equipment Type</a></li>
+                <li><a href="/corrosion-calculator">Corrosion Prediction by Equipment Data</a></li>
                 <li><a href="/fluid-sampling" class="active">Corrosion Prediction by Fluid Sampling</a></li>
             </ul>
         </div>
@@ -129,31 +129,18 @@
                     <span class="result-value" id="predicted_rate">-</span>
                     <span class="result-unit">mm/year</span>
                 </div>
-                <div class="result-item" id="range_row" style="display: none;">
-                    <span class="result-label">Rentang wajar:</span>
-                    <span class="result-value" id="predicted_range">-</span>
-                    <span class="result-unit">mm/year</span>
-                </div>
                 <div class="result-item">
                     <span class="result-label">Model dipakai:</span>
                     <span class="result-value" id="model_used">-</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Classification:</span>
-                    <span class="result-value" id="classification">-</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">Remaining Life:</span>
+                    <span class="result-label">Predicted Remaining Life:</span>
                     <span class="result-value" id="remaining_life">-</span>
                     <span class="result-unit">years</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Retirement Year:</span>
+                    <span class="result-label">Predicted Retirement Year:</span>
                     <span class="result-value" id="retirement_year">-</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">Recommendation:</span>
-                    <span class="result-value" id="recommendation">-</span>
                 </div>
             </div>
             
@@ -222,8 +209,34 @@
             'M-Alkalinity': 'Alkalinitas-M', 'SRB': 'Sulfate Reducing Bacteria'
         };
 
+        // Bagian yang berlaku per jenis peralatan — aturan sama dengan halaman
+        // Corrosion Prediction by Equipment Data (lihat PART_BY_EQUIPMENT di app.py).
+        const SEMUA_PART = ['Shell', 'Head', 'Roof', 'Plate'];
+        const PART_PER_PERALATAN = { 'FFC': ['Plate'], 'HEX': ['Shell'] };
+
         function idUntukFitur(nama) {
             return 'p_' + nama.replace(/[^A-Za-z0-9]/g, '_');
+        }
+
+        /** Isi ulang dropdown Part sesuai Equipment Type yang dipilih. */
+        function segarkanPart() {
+            const sel = document.getElementById('part');
+            const eq = document.getElementById('equipment');
+            // Saat Equipment tidak dipakai model (field disembunyikan), nilainya
+            // tidak boleh membatasi pilihan Part.
+            const tersembunyi = eq.closest('.field-group').style.display === 'none';
+            const khusus = tersembunyi ? null : PART_PER_PERALATAN[eq.value];
+            const nilai = khusus ? SEMUA_PART.filter(v => khusus.includes(v)) : SEMUA_PART;
+
+            const terpilih = nilai.includes(sel.value) ? sel.value : '';
+            sel.innerHTML = '<option value="">-- Pilih Part --</option>';
+            nilai.forEach(v => {
+                const o = document.createElement('option');
+                o.value = v;
+                o.textContent = v;
+                if (v === terpilih) o.selected = true;
+                sel.appendChild(o);
+            });
         }
 
         /** Model mana yang dipakai untuk OU terpilih. */
@@ -277,6 +290,8 @@
             } else {
                 eqGroup.style.display = 'none';
             }
+
+            segarkanPart();
 
             // Pertahankan nilai yang sudah diisi bila nama fiturnya sama
             const lama = {};
@@ -343,6 +358,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             muatInfoModel();
             document.getElementById('ou').addEventListener('change', bangunFieldParameter);
+            document.getElementById('equipment').addEventListener('change', segarkanPart);
         });
 
         async function predictCorrosionRate() {
@@ -410,16 +426,6 @@
 
             document.getElementById('model_used').textContent = result.model || '-';
 
-            // Rentang dari sebaran pohon Random Forest (hanya model per-OU)
-            const rangeRow = document.getElementById('range_row');
-            if (result.range) {
-                document.getElementById('predicted_range').textContent =
-                    result.range.low.toFixed(4) + ' – ' + result.range.high.toFixed(4);
-                rangeRow.style.display = '';
-            } else {
-                rangeRow.style.display = 'none';
-            }
-
             // Catatan keterbatasan model, supaya angka tidak dibaca terlalu pasti
             const noteEl = document.getElementById('quality_note');
             const catatan = [];
@@ -434,28 +440,6 @@
             } else {
                 noteEl.style.display = 'none';
             }
-
-            let classification, recommendation;
-
-            if (corrosionRate < 0.1) {
-                classification = '✅ Very Low (Excellent)';
-                recommendation = 'Kondisi sangat baik. Lanjutkan monitoring rutin.';
-            } else if (corrosionRate < 0.5) {
-                classification = '🟢 Low (Good)';
-                recommendation = 'Kondisi baik. Monitoring berkala diperlukan.';
-            } else if (corrosionRate < 1.0) {
-                classification = '🟡 Moderate (Acceptable)';
-                recommendation = 'Perhatian diperlukan. Tingkatkan frekuensi monitoring.';
-            } else if (corrosionRate < 2.0) {
-                classification = '🟠 High (Concerning)';
-                recommendation = 'Tingkat korosi tinggi. Tindakan mitigasi diperlukan.';
-            } else {
-                classification = '🔴 Very High (Critical)';
-                recommendation = 'CRITICAL! Tindakan segera diperlukan.';
-            }
-
-            document.getElementById('classification').textContent = classification;
-            document.getElementById('recommendation').textContent = recommendation;
 
             createProjectionChart(corrosionRate);
         }
@@ -535,7 +519,7 @@
                         title: {
                             display: true,
                             text:
-                                `Remaining Life = ${remainingLife.toFixed(1)} years | Retirement Year = ${retirementYear}`
+                                `Predicted Remaining Life = ${remainingLife.toFixed(1)} years | Predicted Retirement Year = ${retirementYear}`
                         }
                     },
                     scales: {

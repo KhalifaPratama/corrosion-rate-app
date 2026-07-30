@@ -13,7 +13,7 @@
             <div class="logo">Corrosion Rate App</div>
             <ul class="nav-menu">
                 <li><a href="/">Home</a></li>
-                <li><a href="/corrosion-calculator" class="active">Corrosion Prediction by Equipment Type</a></li>
+                <li><a href="/corrosion-calculator" class="active">Corrosion Prediction by Equipment Data</a></li>
                 <li><a href="/fluid-sampling">Corrosion Prediction by Fluid Sampling</a></li>
             </ul>
         </div>
@@ -137,6 +137,7 @@
         const MODEL_FEATURES = ['equipment_type', 'category', 'part', 'asset_owner', 'ou', 'facility'];
 
         let modelOptions = {};      // vocabulary model, cadangan bila master tidak ada
+        let partPerPeralatan = {};  // jenis peralatan -> bagian yang berlaku
         let master = null;          // {fields, values, rows} kombinasi peralatan nyata
         let masterIndex = null;     // nilai -> indeks, untuk menyaring baris
         let asingPerModel = {};     // nilai di luar cakupan training tiap model
@@ -212,9 +213,27 @@
             });
         }
 
+        /**
+         * Isi ulang dropdown Bagian sesuai jenis peralatan yang dipilih.
+         * 'part' tidak ada di data master, jadi penyaringannya memakai aturan
+         * PART_BY_EQUIPMENT dari server (FFC hanya plate, HEX hanya shell).
+         */
+        function segarkanPart() {
+            const el = document.getElementById('part');
+            if (!el) return;
+
+            const semua = modelOptions.part || [];
+            const jenis = document.getElementById('equipment_type').value;
+            const khusus = partPerPeralatan[jenis];
+            const nilai = khusus ? semua.filter(v => khusus.includes(v)) : semua;
+
+            const terpilih = nilai.includes(el.value) ? el.value : '';
+            isiSelect(el, nilai, terpilih, 'part');
+        }
+
         /** Bangun ulang seluruh dropdown master sesuai pilihan yang aktif. */
         function segarkanDropdown() {
-            if (!master) return;
+            if (!master) { segarkanPart(); return; }
 
             const pilihan = {};
             masterFields().forEach(f => {
@@ -230,6 +249,8 @@
                 const terpilih = nilai.includes(pilihan[f]) ? pilihan[f] : '';
                 isiSelect(el, nilai, terpilih, f);
             });
+
+            segarkanPart();
 
             const info = document.getElementById('cr-master-info');
             if (info) {
@@ -255,6 +276,7 @@
                 if (!json.success) throw new Error('Gagal memuat pilihan model');
 
                 modelOptions = json.options || {};
+                partPerPeralatan = json.part_by_equipment || {};
                 master = json.master || null;
                 asingPerModel = json.master_unknown_per_model || {};
 
@@ -280,13 +302,24 @@
                     segarkanDropdown();
                 }
 
-                // 'part' tidak ada di data master, jadi tetap dari vocabulary model.
-                const fieldModelSaja = MODEL_FEATURES.filter(f => !masterFields().includes(f));
+                // Field selain 'part' yang tidak ada di data master diisi apa
+                // adanya dari vocabulary model; 'part' lewat segarkanPart()
+                // karena pilihannya bergantung pada jenis peralatan.
+                const fieldModelSaja = MODEL_FEATURES.filter(
+                    f => f !== 'part' && !masterFields().includes(f));
                 fieldModelSaja.forEach(f => {
                     const el = document.getElementById(f);
                     if (!el) return;
                     isiSelect(el, modelOptions[f] || [], '', f);
                 });
+
+                // Tanpa data master, jenis peralatan tidak punya listener apa pun,
+                // jadi dropdown Bagian perlu disegarkan sendiri saat jenis berubah.
+                if (!master) {
+                    document.getElementById('equipment_type')
+                        .addEventListener('change', segarkanPart);
+                    segarkanPart();
+                }
 
                 if (!json.models_loaded.short_term || !json.models_loaded.long_term) {
                     const which = [];
