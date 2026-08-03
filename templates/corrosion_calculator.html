@@ -110,14 +110,14 @@
                         <div class="result-card">
                             <div class="result-label">Long-Term Corrosion Rate (p50)</div>
                             <div class="result-value" id="lt-rate">0.000</div>
-                            <div class="result-unit">mm/tahun</div>
-                            <div class="result-footnote">Sisa umur ≈ <strong id="lt-life">-</strong> tahun · Est. retire <strong id="lt-retire">-</strong></div>
+                            <div class="result-unit" id="lt-unit">mm/tahun</div>
+                            <div class="result-footnote" id="lt-foot">Sisa umur ≈ <strong id="lt-life">-</strong> tahun · Est. retire <strong id="lt-retire">-</strong></div>
                         </div>
                         <div class="result-card">
                             <div class="result-label">Short-Term Corrosion Rate (p90)</div>
                             <div class="result-value" id="st-rate">0.000</div>
-                            <div class="result-unit">mm/tahun</div>
-                            <div class="result-footnote">Sisa umur ≈ <strong id="st-life">-</strong> tahun · Est. retire <strong id="st-retire">-</strong></div>
+                            <div class="result-unit" id="st-unit">mm/tahun</div>
+                            <div class="result-footnote" id="st-foot">Sisa umur ≈ <strong id="st-life">-</strong> tahun · Est. retire <strong id="st-retire">-</strong></div>
                         </div>
                     </div>
 
@@ -204,7 +204,8 @@
                     const model = modelTakKenal(field, v);
                     opt.textContent = v + '  ⚠ ' + model.join(' & ');
                     opt.title = 'Nilai ini tidak ada di data training model ' +
-                        model.join(' & ') + ', jadi hasilnya kurang akurat.';
+                        model.join(' & ') + ', jadi hasil model tersebut ' +
+                        'tidak ditampilkan (N/A).';
                 } else {
                     opt.textContent = v;
                 }
@@ -262,7 +263,8 @@
                 ).length;
                 // Legenda tanda ⚠ pada opsi, supaya teks tiap opsi bisa tetap pendek
                 const legenda = Object.keys(asingSet).length
-                    ? ' <span class="legend-warn">⚠ = di luar data training model tersebut, akurasi menurun.</span>'
+                    ? ' <span class="legend-warn">⚠ = di luar data training model tersebut, ' +
+                      'jadi hasil model itu tidak ditampilkan (N/A).</span>'
                     : '';
                 info.innerHTML =
                     `${cocok} dari ${master.rows.length} kombinasi peralatan cocok dengan pilihan saat ini.` + legenda;
@@ -406,7 +408,17 @@
                 if (!stJson.success) warnings.push('Short-Term: ' + stJson.error);
 
                 [['Short-Term', stJson], ['Long-Term', ltJson]].forEach(([label, json]) => {
-                    const unknown = (json.success && json.unknown_values) || {};
+                    if (!json.success) return;
+
+                    // Di luar cakupan: alasannya sudah lengkap dari server, dan
+                    // nilai asing lain tidak relevan lagi karena angkanya memang
+                    // tidak dihitung.
+                    if (json.out_of_scope) {
+                        warnings.push(label + ' tidak tersedia: ' + json.reason);
+                        return;
+                    }
+
+                    const unknown = json.unknown_values || {};
                     const fields = Object.keys(unknown);
                     if (fields.length) {
                         warnings.push(
@@ -426,21 +438,42 @@
             }
         }
 
+        /** Isi baris kaki kartu hasil pada keadaan normal. */
+        function isiKaki(prefix) {
+            return 'Sisa umur ≈ <strong id="' + prefix + '-life">-</strong> tahun' +
+                   ' · Est. retire <strong id="' + prefix + '-retire">-</strong>';
+        }
+
         /**
          * Tampilkan satu kartu hasil. Mengembalikan laju korosi (mm/tahun),
-         * atau null bila prediksi gagal.
+         * atau null bila prediksi gagal atau peralatannya di luar cakupan model.
          */
         function renderResult(prefix, json, year, thickness, minThickness) {
             const rateEl = document.getElementById(prefix + '-rate');
-            const lifeEl = document.getElementById(prefix + '-life');
-            const retireEl = document.getElementById(prefix + '-retire');
+            const unitEl = document.getElementById(prefix + '-unit');
+            const footEl = document.getElementById(prefix + '-foot');
+
+            // Kaki kartu bisa berisi pesan dari hasil sebelumnya; pasang ulang
+            // isi normalnya supaya elemen sisa umur & tahun retire tersedia.
+            footEl.innerHTML = isiKaki(prefix);
+            unitEl.style.display = '';
 
             if (!json.success) {
                 rateEl.textContent = '—';
-                lifeEl.textContent = '-';
-                retireEl.textContent = '-';
                 return null;
             }
+
+            // Model tidak mengenal jenis peralatan ini: angka sengaja tidak
+            // ditampilkan supaya tidak terbaca sebagai prediksi yang sahih.
+            if (json.out_of_scope) {
+                rateEl.textContent = 'N/A';
+                unitEl.style.display = 'none';
+                footEl.textContent = '⚠ Di luar cakupan model — ' + json.reason;
+                return null;
+            }
+
+            const lifeEl = document.getElementById(prefix + '-life');
+            const retireEl = document.getElementById(prefix + '-retire');
 
             const rate = json.predicted_corrosion_rate;
             rateEl.textContent = rate.toFixed(4);

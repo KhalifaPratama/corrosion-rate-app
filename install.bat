@@ -51,14 +51,27 @@ echo.
 if errorlevel 1 (
     echo.
     echo [ERROR] Sebagian paket gagal dipasang, mencoba tanpa versi terkunci...
-    "%PY%" -m pip install flask flask-compress numpy pandas scikit-learn joblib category-encoders xgboost waitress
+    "%PY%" -m pip install flask numpy pandas scikit-learn joblib xgboost waitress
     if errorlevel 1 (
         echo.
-        echo [ERROR] Instalasi gagal. Periksa koneksi internet lalu ulangi.
+        echo [ERROR] Instalasi gagal.
+        echo.
+        echo         Bila pip menyebut "Microsoft Visual C++ 14.0 or greater is
+        echo         required", versi Python di komputer ini tidak punya paket
+        echo         siap pakai. Pakai Python 3.11 - 3.13 versi standar ^(bukan
+        echo         free-threaded / "t"^), hapus folder test_env, lalu ulangi.
+        echo         Selain itu, periksa koneksi internet.
         echo.
         pause
         exit /b 1
     )
+)
+
+REM Opsional: kompresi respons. app.py menangani ketiadaannya lewat
+REM try/except ImportError, jadi kegagalan di sini tidak menggagalkan setup.
+if exist "requirements-optional.txt" (
+    "%PY%" -m pip install -r requirements-optional.txt
+    if errorlevel 1 echo [INFO] Paket opsional dilewati; aplikasi tetap jalan tanpa kompresi.
 )
 
 echo.

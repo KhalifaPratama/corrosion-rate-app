@@ -69,6 +69,19 @@ MODEL_FLUID = os.path.join(base_path, 'corrosion-rate.pkl')
 # Urutan kolom wajib sama persis dengan saat training (pipeline.feature_names_in_)
 MODEL_FEATURES = ['equipment_type', 'category', 'part', 'asset_owner', 'ou', 'facility']
 
+# Cakupan training kedua model tidak sama, dan OneHotEncoder di-training dengan
+# handle_unknown='ignore': nilai di luar vocabulary tidak error, melainkan
+# di-encode nol. Model tetap mengeluarkan angka, tapi kontribusi nilai tersebut
+# hilang tanpa jejak — mis. input FFC dan string ngawur menghasilkan prediksi
+# yang identik pada model short-term.
+#
+# Karena itu prediksi hanya dilaporkan bila SELURUH fitur dikenal model yang
+# bersangkutan; bila ada satu saja yang asing, hasilnya N/A (lihat
+# _run_prediction). Konsekuensinya cukup besar untuk short-term — 344 dari 898
+# kombinasi peralatan di data master jadi N/A (38%), terbanyak karena facility
+# di luar 91 facility yang pernah dilatih — sedangkan long-term hanya 1
+# kombinasi. Nilai yang memicunya ditandai ⚠ di dropdown sebelum menghitung.
+
 model_stcr = None
 model_ltcr = None
 model_fluid = None
@@ -235,25 +248,30 @@ EQUIPMENT_MASTER = load_equipment_master(MASTER_PATH)
 
 def master_values_unknown_per_model():
     """
-    Nilai master yang tidak dikenal masing-masing model.
+    Nilai yang ditawarkan dropdown tapi tidak dikenal masing-masing model.
 
     Cakupan training kedua model tidak sama — STCR jauh lebih sempit dan sama
     sekali tidak mengenal jenis peralatan FFC. Nilai seperti itu tetap
-    ditawarkan (peralatannya memang ada di lapangan), tapi ditandai di dropdown
-    supaya pengguna tahu prediksi model tersebut akan kurang akurat sebelum
-    menekan Hitung, bukan baru diberi tahu setelah hasilnya keluar.
-    """
-    if not EQUIPMENT_MASTER:
-        return {}
+    ditawarkan (peralatannya memang ada di lapangan), tapi ditandai ⚠ di
+    dropdown supaya pengguna tahu prediksi model tersebut tidak akan
+    ditampilkan sebelum menekan Hitung, bukan baru setelah hasilnya keluar.
 
+    Seluruh MODEL_FEATURES diperiksa, bukan hanya field data master: 'part'
+    diambil dari vocabulary model karena tidak ada di master, dan nilai asing
+    di sana ('Plate' pada model short-term) sama-sama membuat hasilnya N/A.
+    """
     hasil = {}
     for label, katalog in (('short_term', STCR_CATEGORIES), ('long_term', LTCR_CATEGORIES)):
         per_field = {}
-        for field in MASTER_FIELDS:
+        for field in MODEL_FEATURES:
             dikenal = set(katalog.get(field, []))
             if not dikenal:
                 continue
-            asing = [v for v in EQUIPMENT_MASTER['values'][field] if v not in dikenal]
+            if EQUIPMENT_MASTER and field in MASTER_FIELDS:
+                ditawarkan = EQUIPMENT_MASTER['values'][field]
+            else:
+                ditawarkan = MODEL_OPTIONS.get(field, [])
+            asing = [v for v in ditawarkan if v not in dikenal]
             if asing:
                 per_field[field] = asing
         if per_field:
@@ -417,6 +435,9 @@ def _run_prediction(model, known_categories, data):
     vocabulary tidak error tapi di-encode sebagai nol (kontribusinya hilang).
     Nilai seperti itu dilaporkan lewat 'unknown_values' supaya hasil yang
     akurasinya menurun tidak lolos tanpa peringatan.
+
+    Bila ada nilai yang asing, angkanya tidak dihitung sama sekali dan hasilnya
+    ditandai 'out_of_scope' — lihat penjelasan di dekat MODEL_FEATURES.
     """
     values = _extract_features(data)
 
@@ -430,6 +451,26 @@ def _run_prediction(model, known_categories, data):
         if known_categories.get(feature) and values[feature] not in known_categories[feature]
     }
 
+    if unknown:
+        # Urutkan mengikuti MODEL_FEATURES supaya pesannya konsisten dibaca
+        di_luar_cakupan = [f for f in MODEL_FEATURES if f in unknown]
+        rincian = ', '.join(f'{f}="{unknown[f]}"' for f in di_luar_cakupan)
+        return {
+            'success': True,
+            'predicted_corrosion_rate': None,
+            'out_of_scope': True,
+            'out_of_scope_features': di_luar_cakupan,
+            'reason': (
+                f'{rincian} tidak ada di data training model ini. Nilai asing '
+                f'di-encode nol sehingga kontribusinya hilang tanpa jejak — '
+                f'angka yang keluar tidak mewakili input yang dipilih, jadi '
+                f'prediksi tidak ditampilkan.'
+            ),
+            'unit': 'mm/year',
+            'input': values,
+            'unknown_values': unknown,
+        }
+
     # Kolom harus sama persis (nama + urutan) dengan saat training
     input_data = pd.DataFrame([[values[f] for f in MODEL_FEATURES]], columns=MODEL_FEATURES)
     prediction = model.predict(input_data)
@@ -437,6 +478,7 @@ def _run_prediction(model, known_categories, data):
     return {
         'success': True,
         'predicted_corrosion_rate': round(float(prediction[0]), 4),
+        'out_of_scope': False,
         'unit': 'mm/year',
         'input': values,
         'unknown_values': unknown

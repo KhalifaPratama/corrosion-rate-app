@@ -3,7 +3,7 @@
 Web application untuk prediksi dan kalkulasi laju korosi menggunakan Machine Learning. Aplikasi ini mendukung 4 metode prediksi berbeda untuk analisis korosi pada peralatan industri.
 
 ![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
-![Python](https://img.shields.io/badge/python-3.8+-green.svg)
+![Python](https://img.shields.io/badge/python-3.11--3.13-green.svg)
 ![Flask](https://img.shields.io/badge/flask-3.1.0-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
@@ -75,8 +75,14 @@ ML prediction untuk laju korosi jangka panjang (1-10 tahun).
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.11 – 3.13 (versi **standar**)
 - pip (Python package manager)
+
+> ⚠️ Jangan pakai build *free-threaded* (akhiran `t`, mis. Python 3.14t). Paket
+> seperti `brotli` dan `scipy` belum menyediakan wheel untuk ABI tersebut,
+> sehingga pip mencoba meng-compile dari source dan gagal dengan pesan
+> *"Microsoft Visual C++ 14.0 or greater is required"*. `SETUP_AND_RUN.bat`
+> sudah menolak interpreter semacam itu secara otomatis.
 
 ### Installation
 
@@ -234,6 +240,44 @@ Content-Type: application/json
   "ou": "HO"
 }
 ```
+
+**Response:**
+```json
+{
+  "success": true,
+  "predicted_corrosion_rate": 0.1338,
+  "out_of_scope": false,
+  "unit": "mm/year",
+  "unknown_values": {}
+}
+```
+
+Bila **ada satu saja** nilai di luar data training model, angkanya **tidak
+dihitung**: OneHotEncoder di-training dengan `handle_unknown='ignore'` sehingga
+nilai asing di-encode nol dan kontribusinya hilang tanpa jejak. Responsnya:
+
+```json
+{
+  "success": true,
+  "predicted_corrosion_rate": null,
+  "out_of_scope": true,
+  "out_of_scope_features": ["equipment_type", "part"],
+  "reason": "equipment_type=\"FFC\", part=\"Plate\" tidak ada di data training model ini. ..."
+}
+```
+
+Client wajib memeriksa `out_of_scope` sebelum memakai angkanya.
+
+Cakupan kedua model jauh berbeda, jadi dampaknya tidak simetris — dari 898
+kombinasi peralatan di `equipment_master.json`:
+
+| Model | Kombinasi ber-N/A | Pemicu terbanyak |
+|---|---|---|
+| Short-term (STCR p90) | 344 (38%) | facility (267), category (126), equipment_type & part (48) |
+| Long-term (LTCR p50) | 1 (0,1%) | category "Water Seal" |
+
+Nilai yang memicunya ditandai ⚠ di dropdown lewat `master_unknown_per_model`
+pada `/api/model-options`, sehingga terlihat sebelum tombol Hitung ditekan.
 
 ---
 

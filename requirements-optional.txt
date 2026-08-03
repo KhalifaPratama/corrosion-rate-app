@@ -1,0 +1,11 @@
+# Dependensi OPSIONAL - aplikasi tetap berjalan normal tanpa paket di sini.
+#
+# app.py membungkus impor flask_compress dengan try/except ImportError, jadi
+# kegagalan instalasi file ini hanya menonaktifkan kompresi respons.
+#
+# Dipisah dari requirements.txt karena Flask-Compress menarik 'brotli', yang
+# tidak punya wheel siap pakai di sebagian versi Python (mis. 3.14
+# free-threaded). Di requirements.txt, kegagalan brotli akan menggagalkan
+# seluruh setup padahal paketnya sendiri tidak wajib.
+
+Flask-Compress==1.15

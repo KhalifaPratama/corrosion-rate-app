@@ -1,17 +1,19 @@
 # Production Requirements - Corrosion Rate Application
-# Python 3.8+
+#
+# Python 3.11 - 3.13. Hindari build free-threaded (akhiran "t", mis. 3.14t):
+# banyak paket belum menyediakan wheel untuk ABI itu, sehingga pip terpaksa
+# meng-compile dari source dan menuntut Visual C++ Build Tools.
+# Dependensi opsional ada di requirements-optional.txt.
 
 # Web Framework
 Flask==3.1.0
 Werkzeug==3.1.3
-Flask-Compress==1.15  # Response compression for better performance
 
 # ML & Data Processing
 numpy==2.4.6
 pandas==3.0.3
 scikit-learn==1.9.0
 joblib==1.5.3
-category-encoders==2.8.1
 xgboost==3.3.0  # Required by 'model - stcr.joblib' (short-term p90)
 
 # Production Server
